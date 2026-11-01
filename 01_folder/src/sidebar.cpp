@@ -90,6 +90,9 @@ void Rebuild() {
     }
     HTREEITEM gq = Add(TVI_ROOT, L"⚡  Quick access", none, {K_GQUICK}, true);
     for (auto& k : g_known) Add(gq, k.first, PathIcon(k.second), {K_KNOWN, k.second});
+    SHSTOCKICONINFO bin{sizeof(bin)};
+    SHGetStockIconInfo(SIID_RECYCLER, SHGSI_SYSICONINDEX, &bin);
+    Add(gq, L"Recycle Bin", bin.iSysImageIndex, {K_KNOWN, BIN_PATH});
     g_lastTop = TopRecent(8);
     for (auto& p : g_lastTop) Add(gq, FileName(p), FolderIcon(), {K_RECENT, p});
     HTREEITEM gd = Add(TVI_ROOT, L"Drives", none, {K_GDRIVES}, true);
@@ -136,7 +139,7 @@ void RemoveNode(const Node& n) {
 
 void Go(const Node& n, bool newTab) {
     if (n.kind <= K_GDRIVES) return;
-    if (!Exists(n.path)) {
+    if (!IsVirtual(n.path) && !Exists(n.path)) {
         g_missing.insert(Lower(n.path));
         InvalidateRect(g_tree, nullptr, FALSE);
         if (n.kind == K_FAV || n.kind == K_RECENT) {
@@ -151,7 +154,7 @@ void Go(const Node& n, bool newTab) {
     TreeView_SelectItem(g_tree, nullptr);  // the sidebar is a launcher, not a selection
     Pane* p = ActivePane();
     if (newTab) p->NewTab(n.path); else p->Navigate(n.path);
-    p->FocusList();
+    PostMessageW(g_main, WM_APP_FOCUSLIST, 0, 0);  // the tree grabs focus again after NM_CLICK
 }
 
 void Menu(Node n, POINT pt) {
@@ -159,6 +162,12 @@ void Menu(Node n, POINT pt) {
     enum { M_TAB = 1, M_PIN, M_RENAME, M_REMOVE, M_UP, M_DOWN, M_TERM, M_PROPS, M_EJECT };
     HMENU m = CreatePopupMenu();
     AppendMenuW(m, MF_STRING, M_TAB, L"Open in new tab");
+    if (IsVirtual(n.path)) {  // Recycle Bin: nothing else applies
+        int r = TrackPopupMenu(m, TPM_RETURNCMD | TPM_RIGHTBUTTON, pt.x, pt.y, 0, g_main, nullptr);
+        DestroyMenu(m);
+        if (r == M_TAB) Go(n, true);
+        return;
+    }
     if (n.kind == K_DRIVE && IsExternalDrive(n.path)) AppendMenuW(m, MF_STRING, M_EJECT, L"Eject");
     if (n.kind == K_FAV) {
         AppendMenuW(m, MF_STRING, M_RENAME, L"Rename");
@@ -405,6 +414,11 @@ void SidebarOnNotify(NMHDR* nm, LRESULT& res) {
         POINT pt; GetCursorPos(&pt);
         if (Node* n = NodeAt(pt)) Menu(*n, pt);
         res = TRUE;
+        return;
+    }
+    case TVN_SELCHANGINGW: {  // the tree auto-selects its first row when it gets focus; the sidebar is a launcher
+        auto tv = (NMTREEVIEWW*)nm;
+        if (tv->action == TVC_UNKNOWN && tv->itemNew.hItem) res = TRUE;
         return;
     }
     case TVN_BEGINDRAGW: {

@@ -7,6 +7,6 @@ extern const ColDef g_colDefs[C_ALL];
 extern bool g_colShown[C_FILECOLS];   // user-toggled file columns (C_NAME always shown)
 extern int g_colW[C_ALL];             // widths at 96 dpi
 
-vector<int> VisibleColumns(bool drives);
+vector<int> VisibleColumns(int mode);  // 0 files, 1 drives (This PC), 2 Recycle Bin
 wstring CellText(const Item& it, int col);
 int ColumnMenu(HWND owner, POINT screenPt);  // returns toggled column or -1

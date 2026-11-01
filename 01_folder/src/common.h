@@ -42,7 +42,11 @@ enum {
     WM_APP_SELNAME,              // select name part in label edit
     WM_APP_STATUS,               // deferred status bar update (pane)
     WM_APP_EJECTED,              // lParam = eject result (drives.cpp)
+    WM_APP_FOCUSLIST,            // focus the active pane's list (posted, after a control finishes its click)
+    WM_APP_MESSAGE,              // lParam = wstring* to show in a message box (from worker threads)
 };
+
+extern "C" void WINAPI SHUpdateRecycleBinIcon(void);  // shell32 export, not declared in MinGW headers
 
 extern HINSTANCE g_inst;
 extern HWND g_main;
@@ -55,6 +59,10 @@ inline wstring Lower(wstring s) { if (!s.empty()) CharLowerBuffW(&s[0], (DWORD)s
 inline bool IEq(const wstring& a, const wstring& b) { return CompareStringOrdinal(a.c_str(), (int)a.size(), b.c_str(), (int)b.size(), TRUE) == CSTR_EQUAL; }
 inline bool IStarts(const wstring& s, const wstring& p) { return s.size() >= p.size() && CompareStringOrdinal(s.c_str(), (int)p.size(), p.c_str(), (int)p.size(), TRUE) == CSTR_EQUAL; }
 inline bool IsRoot(const wstring& p) { return p.size() == 3 && p[1] == L':' && p[2] == L'\\'; }
+// Virtual locations: "" = This PC, "::bin" = Recycle Bin (all drives)
+#define BIN_PATH L"::bin"
+inline bool IsVirtual(const wstring& p) { return p.size() > 1 && p[0] == L':' && p[1] == L':'; }
+inline bool IsFsPath(const wstring& p) { return !p.empty() && !IsVirtual(p); }  // a real folder
 inline wstring Join(const wstring& dir, const wstring& name) {
     if (dir.empty()) return name;
     return dir.back() == L'\\' ? dir + name : dir + L"\\" + name;
@@ -72,6 +80,11 @@ inline wstring FileName(const wstring& p) {
     if (IsRoot(p)) return p.substr(0, 2);
     size_t i = p.find_last_of(L'\\');
     return i == wstring::npos ? p : p.substr(i + 1);
+}
+inline wstring DisplayName(const wstring& path) {  // tab titles, tooltips
+    if (path.empty()) return L"This PC";
+    if (IsVirtual(path)) return L"Recycle Bin";
+    return FileName(path);
 }
 inline bool IsDir(const wstring& p) {
     DWORD a = GetFileAttributesW(p.c_str());

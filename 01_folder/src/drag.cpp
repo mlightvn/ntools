@@ -113,6 +113,7 @@ void DragUpdate() {
     wstring text;
     if (!ok) text = L"✕  " + what;
     else if (t.pin) text = L"★  Pin to Favourites";
+    else if (IsVirtual(t.dir)) text = L"→  Move " + what + L" to Recycle Bin";
     else text = (copy ? L"+  Copy " : L"→  Move ") + what + L" to " + (IsRoot(t.dir) ? t.dir.substr(0, 2) : FileName(t.dir));
     SetTip(text, pt);
     SetCursor(LoadCursor(nullptr, ok ? IDC_ARROW : IDC_NO));
@@ -131,6 +132,7 @@ void DragEnd(bool drop) {
     SidebarClearDropHi();
     if (!drop || !Valid(t, copy)) return;
     if (t.pin) { for (auto& p : D.paths) if (IsDir(p)) AddFavourite(p); return; }
+    if (IsVirtual(t.dir)) { FileOp(OP_RECYCLE, D.paths); return; }
     FileOp(copy ? OP_COPY : OP_MOVE, D.paths, t.dir);
 }
 
@@ -152,5 +154,6 @@ void DropExternal(HDROP h) {
     SidebarClearDropHi();
     if (!Valid(t, true)) return;
     if (t.pin) { for (auto& p : files) if (IsDir(p)) AddFavourite(p); return; }
+    if (IsVirtual(t.dir)) { FileOp(OP_RECYCLE, files); return; }
     FileOp(GetKeyState(VK_SHIFT) < 0 ? OP_MOVE : OP_COPY, files, t.dir);
 }

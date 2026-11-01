@@ -1,6 +1,7 @@
 #include "fs.h"
 #include <thread>
 #include <mutex>
+#include <sddl.h>
 
 bool g_showHidden = false;
 
@@ -106,6 +107,8 @@ void SortItems(vector<Item>& v, int col, bool asc) {
         case C_EXT: r = StrCmpLogicalW(PathFindExtensionW(a.name.c_str()), PathFindExtensionW(b.name.c_str())); break;
         case C_ATTR: r = Cmp3(a.attr, b.attr); break;
         case C_DTYPE: r = Cmp3(a.dtype, b.dtype); break;
+        case C_ORIGIN: r = StrCmpLogicalW(a.label.c_str(), b.label.c_str()); break;
+        case C_DELETED: r = CmpFt(a.mt, b.mt); break;
         }
         if (r == 0) r = StrCmpLogicalW(a.name.c_str(), b.name.c_str());
         return asc ? r < 0 : r > 0;
@@ -120,6 +123,9 @@ void ListAsync(HWND notify, int tabId, int gen, const wstring& path, int sortCol
         auto r = new ListResult{tabId, gen, path};
         if (path.empty()) {
             r->items = ListDrives();
+        } else if (IsVirtual(path)) {
+            r->items = ListRecycleBin();
+            SortItems(r->items, sortCol, asc);
         } else {
             WIN32_FIND_DATAW fd;
             HANDLE f = FindFirstFileExW(Join(path, L"*").c_str(), FindExInfoBasic, &fd, FindExSearchNameMatch,
@@ -165,6 +171,71 @@ vector<Item> ListDrives() {
             if (WNetGetConnectionW(dev.c_str(), remote, &n) == NO_ERROR) it.label = remote;
         }
         v.push_back(it);
+    }
+    return v;
+}
+
+wstring UserSid() {
+    static wstring sid;
+    if (!sid.empty()) return sid;
+    HANDLE tok;
+    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &tok)) return L"";
+    BYTE buf[256];
+    DWORD n = 0;
+    if (GetTokenInformation(tok, TokenUser, buf, sizeof(buf), &n)) {
+        LPWSTR s = nullptr;
+        if (ConvertSidToStringSidW(((TOKEN_USER*)buf)->User.Sid, &s)) { sid = s; LocalFree(s); }
+    }
+    CloseHandle(tok);
+    return sid;
+}
+
+wstring BinInfoPath(const wstring& real) { return Join(Parent(real), L"$I" + FileName(real).substr(2)); }
+
+// Each deleted item is a pair: $Rxxxxxx(.ext) = the data, $Ixxxxxx(.ext) = record with original path,
+// size and deletion time (v1: fixed 260-char path, v2: length-prefixed path).
+vector<Item> ListRecycleBin() {
+    vector<Item> v;
+    wstring sid = UserSid();
+    DWORD mask = GetLogicalDrives();
+    for (int d = 0; d < 26 && !sid.empty(); d++) {
+        if (!(mask & (1u << d))) continue;
+        wstring root = wstring(1, wchar_t(L'A' + d)) + L":\\";
+        UINT type = GetDriveTypeW(root.c_str());
+        if (type != DRIVE_FIXED && type != DRIVE_REMOVABLE) continue;  // never touch network drives here
+        wstring bin = root + L"$Recycle.Bin\\" + sid;
+        WIN32_FIND_DATAW fd;
+        HANDLE f = FindFirstFileExW(Join(bin, L"$I*").c_str(), FindExInfoBasic, &fd, FindExSearchNameMatch, nullptr, 0);
+        if (f == INVALID_HANDLE_VALUE) continue;
+        do {
+            wstring info = Join(bin, fd.cFileName);
+            HANDLE h = CreateFileW(info.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING, 0, nullptr);
+            if (h == INVALID_HANDLE_VALUE) continue;
+            BYTE buf[4096] = {};
+            DWORD got = 0;
+            ReadFile(h, buf, sizeof(buf) - 2, &got, nullptr);
+            CloseHandle(h);
+            if (got < 28) continue;
+            ULONGLONG ver = *(ULONGLONG*)buf;
+            wstring orig;
+            if (ver == 1) orig = wstring((const wchar_t*)(buf + 24));
+            else if (ver == 2) {
+                DWORD len = *(DWORD*)(buf + 24);
+                if (28 + len * 2 > got || len == 0) continue;
+                orig.assign((const wchar_t*)(buf + 28), len - 1);
+            } else continue;
+            Item it;
+            it.real = Join(bin, L"$R" + wstring(fd.cFileName).substr(2));
+            WIN32_FILE_ATTRIBUTE_DATA a;
+            if (orig.empty() || !GetFileAttributesExW(it.real.c_str(), GetFileExInfoStandard, &a)) continue;  // orphan record
+            it.name = FileName(orig);
+            it.label = Parent(orig);
+            it.attr = a.dwFileAttributes & ~FILE_ATTRIBUTE_HIDDEN;
+            it.size = *(ULONGLONG*)(buf + 8);
+            it.mt = *(FILETIME*)(buf + 16);  // deletion time
+            v.push_back(std::move(it));
+        } while (FindNextFileW(f, &fd));
+        FindClose(f);
     }
     return v;
 }
@@ -265,6 +336,7 @@ bool ResolveUserPath(wstring s, const wstring& cwd, wstring& dir, wstring& selec
     while (b < s.size() && (iswspace(s[b]) || s[b] == L'"')) b++;
     s = s.substr(b);
     if (s.empty() || IEq(s, L"This PC")) return true;
+    if (IEq(s, L"Recycle Bin") || s == BIN_PATH) { dir = BIN_PATH; return true; }
     if (s.rfind(L"file:", 0) == 0) {  // file:///D:/x
         wchar_t p[MAX_PATH * 4]; DWORD n = ARRAYSIZE(p);
         if (SUCCEEDED(PathCreateFromUrlW(s.c_str(), p, &n, 0))) s = p;

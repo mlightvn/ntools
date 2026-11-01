@@ -3,11 +3,12 @@
 #include "common.h"
 
 enum Col { C_NAME, C_TYPE, C_MTIME, C_SIZE, C_CTIME, C_ATIME, C_EXT, C_ATTR, C_FILECOLS,
-           C_DTYPE = C_FILECOLS, C_FREE, C_TOTAL, C_ALL };
+           C_DTYPE = C_FILECOLS, C_FREE, C_TOTAL, C_ORIGIN, C_DELETED, C_ALL };
 
 struct Item {
     wstring name;            // file name, or "C:\" for drives
-    wstring label;           // drive label
+    wstring label;           // drive label; Recycle Bin: original folder
+    wstring real;            // Recycle Bin only: the $R... item on disk
     DWORD attr = 0;
     ULONGLONG size = 0;      // drives: total bytes
     ULONGLONG free = 0;      // drives only
@@ -23,6 +24,9 @@ extern bool g_showHidden;
 
 void ListAsync(HWND notify, int tabId, int gen, const wstring& path, int sortCol, bool asc);
 vector<Item> ListDrives();                       // fast; details come via WM_APP_DRIVEINFO
+vector<Item> ListRecycleBin();                   // items of <drive>\$Recycle.Bin\<SID> on local drives
+wstring BinInfoPath(const wstring& real);        // the $I record that belongs to a $R item
+wstring UserSid();
 void DriveInfoAsync(HWND notify, const vector<Item>& drives);
 vector<wstring> ListSubdirs(const wstring& dir, const wstring& prefix, size_t max);
 void SortItems(vector<Item>& v, int col, bool asc);

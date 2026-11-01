@@ -34,7 +34,11 @@ build.bat
 - **Sidebar**:
   - Favourites là folder do bạn ghim. Ghim bằng ☆, Ctrl+D, menu chuột phải, hoặc kéo folder thả vào nhóm Favourites.
   - Rê chuột lên một mục để hiện nút ▲ ▼ đổi thứ tự. Chuột phải lên một mục để đổi tên, xóa, Move up / Move down.
-  - Quick access gồm các folder hệ thống và 8 folder bạn dùng nhiều nhất gần đây.
+  - Quick access gồm các folder hệ thống, **Recycle Bin**, và 8 folder bạn dùng nhiều nhất gần đây.
+- **Recycle Bin** (sidebar, hoặc gõ `Recycle Bin` vào address bar): gộp rác của mọi ổ trong máy, các cột Tên / Vị trí gốc / Ngày xóa / Dung lượng / Loại.
+  - Del hoặc Shift+Del: xóa vĩnh viễn ngay (có hỏi xác nhận).
+  - Chuột phải: Restore (trả về đúng chỗ cũ; trùng tên thì giữ cả hai), Delete permanently, Empty Recycle Bin.
+  - Kéo file thả lên Recycle Bin (sidebar / address bar) = đưa vào thùng rác.
 - **Profile** (nút ở đầu sidebar, hoặc Ctrl+P):
   - Mỗi profile lưu: số pane, độ rộng các pane, pane đang active, và trong từng pane là các tab (thứ tự, path, tab đang chọn).
   - Layout **chỉ được lưu khi bạn bấm Save (Ctrl+S)**. Mở app sẽ vào profile dùng gần nhất, với layout đã lưu; profile chưa lưu lần nào thì mọi pane ở This PC.
@@ -92,6 +96,8 @@ Ctrl+C ghi cùng lúc nhiều định dạng, nên mỗi nơi dán sẽ ra kết
   - Video, ảnh, file đã nén (mp4, jpg, zip…) được lưu nguyên không nén lại, cho nhanh.
   - Tên archive: `<tên item đầu tiên>.zip` ngay trong folder hiện tại (trùng tên thì thêm "(2)").
 - **Add to .7z archive (7-Zip)**: dùng 7-Zip đã cài trên máy, 7-Zip hiện cửa sổ tiến trình riêng. Nếu chưa cài 7-Zip, mục này bị mờ.
+- **Add to .7z with password…**: mã hóa AES-256; tùy chọn mã hóa cả tên file (không có mật khẩu thì không xem được danh sách file). Nếu mật khẩu có ký tự có dấu, app hỏi lại, vì bộ gõ tiếng Việt (Unikey, EVKey…) hay tự đổi "a1"/"as" thành "á".
+- **Extract here / Extract to "<tên>\"** (chuột phải lên .zip, .7z, .rar, .tar, .gz, .tgz, .bz2, .xz): dùng 7-Zip (tự hỏi mật khẩu nếu file có mật khẩu); không có 7-Zip thì dùng `tar.exe` có sẵn trong Windows. "Extract to" tạo folder riêng; trùng tên thì thêm "(2)".
 - **Eject** (chuột phải lên ổ USB / ổ cứng gắn ngoài, trong This PC hoặc sidebar): các pane đang mở ổ đó tự quay về This PC rồi app yêu cầu Windows "Safely Remove". Nếu ổ đang bị chương trình khác dùng, app báo tên chương trình đó.
 
 ## Copy / Move / Delete
@@ -99,6 +105,8 @@ Ctrl+C ghi cùng lúc nhiều định dạng, nên mỗi nơi dán sẽ ra kết
 - Chạy ở luồng nền. Cửa sổ tiến trình chỉ hiện nếu thao tác kéo dài hơn 0,5 giây, gồm số item, MB, tốc độ và nút Cancel.
 - Khi trùng tên: Replace / Skip / Keep both ("a (2).txt"), có ô "Do this for all conflicts". Dán vào chính folder nguồn thì tạo "a - Copy.txt".
 - Move trong cùng ổ đĩa là đổi tên (tức thì); khác ổ thì copy rồi xóa nguồn.
+- **Del (Recycle Bin)**: trên ổ NTFS trong máy, item được chuyển thẳng vào `$Recycle.Bin` của ổ đó (chỉ là đổi tên), nên gần như tức thì dù folder có hàng trăm nghìn file. Vẫn Restore được bình thường từ Recycle Bin. Ổ USB FAT/exFAT, ổ mạng, hoặc khi có file bên trong đang bị mở thì dùng cách của Windows như cũ.
+- **Shift+Del (xóa vĩnh viễn)**: xóa kiểu `rm -rf`, tốc độ ngang `rmdir /s /q`. File bị khóa được bỏ qua, xóa xong mới báo một lần danh sách những file không xóa được.
 - Hủy giữa chừng sẽ xóa file đang copy dở.
 
 ## Checklist
@@ -114,6 +122,9 @@ Ctrl+C ghi cùng lúc nhiều định dạng, nên mỗi nơi dán sẽ ra kết
 - [x] Folder mới, F2, Del / Shift+Del
 - [x] Favourites (ghim, ▲ ▼), Quick access, tab (×, menu chuột phải), 1/2/3 pane, chọn cột
 - [x] Nén ZIP (tên tiếng Việt, folder lồng nhau / rỗng, file 4,5GB → ZIP64; kiểm tra bằng 7-Zip và .NET), Add to .7z, nút Layout, mục Eject chỉ hiện với ổ gắn ngoài
+- [x] Xóa nhanh: Del 20.000 file vào Recycle Bin rồi Restore đủ 20.000 file; Shift+Del 20.000 file với 1 file bị khóa (chỉ file đó còn lại, báo 1 lần)
+- [x] Recycle Bin trong app: hiện đúng item (cả item do Windows xóa), Restore về chỗ cũ, xóa vĩnh viễn (xóa cả cặp $R + $I)
+- [x] 7z có mật khẩu (7zAES, ẩn tên file; mở sai mật khẩu bị từ chối), Extract to folder riêng với file có mật khẩu (7-Zip hỏi mật khẩu)
 - [x] Profile: mặc định This PC, Ctrl+S lưu rồi mở lại app ra đúng layout, Save as / Rename / Delete, chuyển profile, hỏi khi còn thay đổi chưa lưu
 
 Chưa làm (giới hạn hiện tại):
@@ -125,3 +136,5 @@ Chưa làm (giới hạn hiện tại):
 - [ ] Test với ổ mạng bị ngắt và khi đổi DPI giữa hai màn hình
 - [ ] Profile chưa lưu lịch sử Back/Forward của từng tab
 - [ ] Test Eject thật trên một ổ USB (mới kiểm tra menu và nhận diện ổ gắn ngoài)
+- [ ] Test giải nén bằng `tar.exe` (chỉ dùng khi máy không có 7-Zip; máy hiện tại có 7-Zip)
+- [ ] Test "Empty Recycle Bin" thật (chưa chạy để không xóa rác thật của bạn; dùng cùng cơ chế với Delete permanently đã test)

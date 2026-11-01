@@ -160,7 +160,7 @@ void Pane::SwitchTab(int i) {
 
 void Pane::UpdateTabs() {
     for (size_t i = 0; i < tabs_.size(); i++) {
-        wstring name = tabs_[i]->path.empty() ? L"This PC" : FileName(tabs_[i]->path);
+        wstring name = DisplayName(tabs_[i]->path);
         if (name.size() > 24) name = name.substr(0, 22) + L"…";
         name += L"  ";  // two em spaces: room for the "×" (themed tabs ignore TCM_SETPADDING)
         TCITEMW ti{TCIF_TEXT};
@@ -314,7 +314,7 @@ void Pane::Navigate(const wstring& p, bool hist, const wstring& select) {
     UpdateTabs();
     UpdateStar();
     watcher_.Watch(hwnd, path);
-    if (!path.empty()) TrackVisit(path);
+    if (IsFsPath(path)) TrackVisit(path);
 }
 
 void Pane::Refresh() {
@@ -349,12 +349,12 @@ void Pane::GoUp() {
 }
 
 void Pane::RebuildColumns() {
-    int mode = T()->path.empty() ? 1 : 0;
+    int mode = Mode();
     if (colsMode_ >= 0)  // remember widths of current columns
         for (size_t i = 0; i < cols_.size(); i++) g_colW[cols_[i]] = MulDiv(ListView_GetColumnWidth(list, (int)i), 96, g_dpi);
     SendMessageW(list, WM_SETREDRAW, FALSE, 0);
     while (ListView_DeleteColumn(list, 0)) {}
-    cols_ = VisibleColumns(mode == 1);
+    cols_ = VisibleColumns(mode);
     for (size_t i = 0; i < cols_.size(); i++) {
         int c = cols_[i];
         LVCOLUMNW lc{LVCF_TEXT | LVCF_WIDTH | LVCF_FMT};
@@ -378,7 +378,7 @@ void Pane::RebuildColumns() {
 
 void Pane::ShowItems(bool restore) {
     Tab* t = T();
-    int mode = t->path.empty() ? 1 : 0;
+    int mode = Mode();
     if (mode != colsMode_) RebuildColumns();
     else {  // refresh sort arrow
         HWND hdr = ListView_GetHeader(list);
@@ -420,8 +420,8 @@ void Pane::ShowItems(bool restore) {
     EnableWindow(btn_[ID_BACK - ID_BACK], !t->back.empty());
     EnableWindow(btn_[ID_FWD - ID_BACK], !t->fwd.empty());
     EnableWindow(btn_[ID_UP - ID_BACK], !t->path.empty());
-    EnableWindow(btn_[ID_NEWFOLDER - ID_BACK], !t->path.empty());
-    EnableWindow(btn_[ID_STAR - ID_BACK], !t->path.empty());
+    EnableWindow(btn_[ID_NEWFOLDER - ID_BACK], IsFsPath(t->path));
+    EnableWindow(btn_[ID_STAR - ID_BACK], IsFsPath(t->path));
 }
 
 void Pane::OnDrivesChanged() {
@@ -443,7 +443,7 @@ void Pane::UpdateStatus() {
             ULONGLONG sz = 0;
             bool any = false;
             for (int i = -1; (i = ListView_GetNextItem(list, i, LVNI_SELECTED)) >= 0;)
-                if (i < (int)t->items.size() && !t->items[i].isDir()) { sz += t->items[i].size; any = true; }
+                if (i < (int)t->items.size() && (!t->items[i].isDir() || !t->items[i].real.empty())) { sz += t->items[i].size; any = true; }
             if (any) s += L"   ·   " + FmtSize(sz);
         }
     }
@@ -453,7 +453,53 @@ void Pane::UpdateStatus() {
 wstring Pane::ItemPath(int i) {
     Tab* t = T();
     if (i < 0 || i >= (int)t->items.size()) return L"";
+    if (!t->items[i].real.empty()) return t->items[i].real;  // Recycle Bin: the $R item on disk
     return t->path.empty() ? t->items[i].name : Join(t->path, t->items[i].name);
+}
+
+int Pane::Mode() {
+    const wstring& p = T()->path;
+    return p.empty() ? 1 : IsVirtual(p) ? 2 : 0;
+}
+
+// ---------- Recycle Bin view ----------
+void Pane::BinDelete(bool all) {
+    Tab* t = T();
+    vector<wstring> src;
+    int n = 0;
+    for (int i = 0; i < (int)t->items.size(); i++) {
+        if (!all && !ListView_GetItemState(list, i, LVIS_SELECTED)) continue;
+        src.push_back(t->items[i].real);
+        src.push_back(BinInfoPath(t->items[i].real));  // the record goes too, or Windows shows a ghost entry
+        n++;
+    }
+    if (!n) return;
+    wstring q = all ? L"Empty the Recycle Bin?\n\nAll " + std::to_wstring(n) + L" items will be permanently deleted."
+              : n == 1 ? L"Permanently delete \"" + t->items[ListView_GetNextItem(list, -1, LVNI_SELECTED)].name + L"\"?"
+                       : L"Permanently delete " + std::to_wstring(n) + L" items?";
+    if (MessageBoxW(g_main, q.c_str(), L"Recycle Bin", MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON2) != IDYES) return;
+    FileOp(OP_DELETE, src);
+}
+
+void Pane::BinRestore() {
+    Tab* t = T();
+    auto dirs = new vector<wstring>();
+    wstring errors;
+    for (int i = -1; (i = ListView_GetNextItem(list, i, LVNI_SELECTED)) >= 0;) {
+        const Item& it = t->items[i];
+        if (!IsDir(it.label)) SHCreateDirectoryExW(nullptr, it.label.c_str(), nullptr);
+        wstring target = Join(it.label, it.name);
+        if (Exists(target)) target = Join(it.label, UniqueName(it.label, it.name, false));  // keep both
+        if (MoveFileExW(it.real.c_str(), target.c_str(), MOVEFILE_COPY_ALLOWED)) {
+            DeleteFileW(BinInfoPath(it.real).c_str());
+            dirs->push_back(it.label);
+        } else {
+            errors += Join(it.label, it.name) + L"\n      " + ErrText(GetLastError()) + L"\n";
+        }
+    }
+    if (!errors.empty()) MessageBoxW(g_main, (L"Could not restore:\n\n" + errors).c_str(), L"Recycle Bin", MB_ICONWARNING);
+    SHUpdateRecycleBinIcon();
+    PostMessageW(g_main, WM_APP_OPDONE, 0, (LPARAM)dirs);  // refreshes this view and the restored folders
 }
 
 vector<wstring> Pane::Selected() {
@@ -468,7 +514,7 @@ void Pane::OpenItems(bool newTab) {
     int f = ListView_GetNextItem(list, -1, LVNI_FOCUSED);
     if (f < 0 || f >= (int)t->items.size() || ListView_GetItemState(list, f, LVIS_SELECTED) == 0)
         f = ListView_GetNextItem(list, -1, LVNI_SELECTED);
-    if (f < 0) return;
+    if (f < 0 || Mode() == 2) return;  // recycled items are restored or deleted, not opened
     if (t->items[f].isDir()) { newTab ? NewTab(ItemPath(f)) : Navigate(ItemPath(f)); return; }
     if (IEq(PathFindExtensionW(t->items[f].name.c_str()), L".lnk")) {
         wstring d = LnkFolder(ItemPath(f));
@@ -481,7 +527,7 @@ void Pane::OpenItems(bool newTab) {
 
 void Pane::Copy(bool cut, bool link) {
     vector<wstring> sel = Selected();
-    if (sel.empty()) return;
+    if (sel.empty() || Mode() == 2) return;
     if (T()->path.empty()) { cut = false; }
     ClipSetFiles(g_main, sel, cut, link);
     if (cut) SetCutSet(sel); else ClearCutSet();
@@ -500,6 +546,7 @@ void Pane::Paste(const wstring& dir) {
     bool move;
     if (ClipGetFiles(g_main, files, move)) {
         if (dir.empty()) { MessageBeep(MB_ICONWARNING); return; }
+        if (IsVirtual(dir)) { FileOp(OP_RECYCLE, files); if (move) ClipClear(g_main); return; }  // paste into the bin = delete
         FileOp(move ? OP_MOVE : OP_COPY, files, dir);
         if (move) { ClipClear(g_main); ClearCutSet(); }
         return;
@@ -509,6 +556,7 @@ void Pane::Paste(const wstring& dir) {
 }
 
 void Pane::Delete(bool permanent) {
+    if (Mode() == 2) { BinDelete(false); return; }  // in the bin, Del always deletes for good
     vector<wstring> sel = Selected();
     if (sel.empty() || Path().empty()) return;
     if (permanent) {
@@ -529,7 +577,7 @@ void Pane::Delete(bool permanent) {
 
 void Pane::NewFolder(bool file) {
     Tab* t = T();
-    if (t->path.empty()) { MessageBeep(MB_ICONWARNING); return; }
+    if (!IsFsPath(t->path)) { MessageBeep(MB_ICONWARNING); return; }
     wstring name = UniqueName(t->path, file ? L"New Text Document.txt" : L"New folder", false);
     wstring full = Join(t->path, name);
     bool ok;
@@ -581,12 +629,34 @@ void Pane::ContextMenu(POINT pt, bool keyboard) {
         }
         if (hit < 0) ListView_SetItemState(list, -1, 0, LVIS_SELECTED);
     }
+    if (Mode() == 2) {  // Recycle Bin
+        enum { B_RESTORE = 1, B_DELETE, B_EMPTY, B_REFRESH };
+        bool any = ListView_GetSelectedCount(list) > 0;
+        HMENU m = CreatePopupMenu();
+        if (any) {
+            AppendMenuW(m, MF_STRING, B_RESTORE, L"Restore");
+            SetMenuDefaultItem(m, B_RESTORE, FALSE);
+            AppendMenuW(m, MF_STRING, B_DELETE, L"Delete permanently\tDel");
+            AppendMenuW(m, MF_SEPARATOR, 0, nullptr);
+        }
+        AppendMenuW(m, MF_STRING | (t->items.empty() ? MF_GRAYED : 0), B_EMPTY, L"Empty Recycle Bin");
+        AppendMenuW(m, MF_STRING, B_REFRESH, L"Refresh\tF5");
+        int r = TrackPopupMenu(m, TPM_RETURNCMD | TPM_RIGHTBUTTON, pt.x, pt.y, 0, hwnd, nullptr);
+        DestroyMenu(m);
+        if (r == B_RESTORE) BinRestore();
+        if (r == B_DELETE) BinDelete(false);
+        if (r == B_EMPTY) BinDelete(true);
+        if (r == B_REFRESH) Refresh();
+        return;
+    }
     bool drives = t->path.empty();
     vector<wstring> sel = Selected();
     bool oneDir = sel.size() == 1 && hit >= 0 && t->items[hit].isDir();
     bool canPaste = IsClipboardFormatAvailable(CF_HDROP);
     enum { M_OPEN = 1, M_OPENTAB, M_CUT, M_COPY, M_LINK, M_PATH, M_PASTE, M_RENAME, M_DELETE, M_NEWDIR, M_NEWFILE,
-           M_FAV, M_TERM, M_PROPS, M_REFRESH, M_HIDDEN, M_ZIP, M_7Z, M_EJECT };
+           M_FAV, M_TERM, M_PROPS, M_REFRESH, M_HIDDEN, M_ZIP, M_7Z, M_7ZPW, M_EJECT, M_XHERE, M_XFOLDER };
+    bool archives = !sel.empty() && !drives;
+    for (auto& s : sel) if (!IsArchive(s)) { archives = false; break; }
     bool ejectable = drives && oneDir && IsExternalDrive(sel[0]);
     wstring sevenZip = drives || sel.empty() ? L"" : SevenZipExe();
     HMENU m = CreatePopupMenu();
@@ -606,9 +676,17 @@ void Pane::ContextMenu(POINT pt, bool keyboard) {
             AppendMenuW(m, MF_STRING | (sel.size() == 1 ? 0 : MF_GRAYED), M_RENAME, L"Rename\tF2");
             AppendMenuW(m, MF_STRING, M_DELETE, L"Delete\tDel");
             AppendMenuW(m, MF_SEPARATOR, 0, nullptr);
+            if (archives) {
+                AppendMenuW(m, MF_STRING, M_XHERE, L"Extract here");
+                wstring to = sel.size() == 1 ? L"Extract to \"" + FileName(sel[0]).substr(0, FileName(sel[0]).find_last_of(L'.')) + L"\\\""
+                                             : L"Extract each to its own folder";
+                AppendMenuW(m, MF_STRING, M_XFOLDER, to.c_str());
+                AppendMenuW(m, MF_SEPARATOR, 0, nullptr);
+            }
             AppendMenuW(m, MF_STRING, M_ZIP, L"Compress to ZIP file");
-            AppendMenuW(m, MF_STRING | (sevenZip.empty() ? MF_GRAYED : 0), M_7Z,
-                        sevenZip.empty() ? L"Add to .7z archive (7-Zip not installed)" : L"Add to .7z archive (7-Zip)");
+            UINT no7 = sevenZip.empty() ? MF_GRAYED : 0;
+            AppendMenuW(m, MF_STRING | no7, M_7Z, sevenZip.empty() ? L"Add to .7z archive (7-Zip not installed)" : L"Add to .7z archive (7-Zip)");
+            AppendMenuW(m, MF_STRING | no7, M_7ZPW, L"Add to .7z with password…");
         }
         AppendMenuW(m, MF_SEPARATOR, 0, nullptr);
         if (oneDir) AppendMenuW(m, MF_STRING, M_FAV, IsFavourite(sel[0]) ? L"Remove from Favourites" : L"Add to Favourites");
@@ -653,6 +731,14 @@ void Pane::ContextMenu(POINT pt, bool keyboard) {
     case M_HIDDEN: ToggleHidden(); break;
     case M_ZIP: FileOp(OP_ZIP, sel, ArchiveName(sel, L".zip")); break;
     case M_7Z: SevenZipAdd(sel, ArchiveName(sel, L".7z")); break;
+    case M_7ZPW: {
+        wstring pw;
+        bool names = true;
+        if (PasswordBox(L"Add to .7z with password", pw, names)) SevenZipAdd(sel, ArchiveName(sel, L".7z"), pw, names);
+        break;
+    }
+    case M_XHERE: ExtractArchives(sel, false); break;
+    case M_XFOLDER: ExtractArchives(sel, true); break;
     case M_EJECT: EjectDrive(sel[0]); break;
     }
 }
@@ -682,7 +768,7 @@ bool Pane::HandleKey(const MSG& msg) {
     case 'V': if (ctrl && !alt) { Paste(Path()); return true; } break;
     case 'A': if (ctrl) { SelectAll(); return true; } break;
     case 'N': if (ctrl && (shift || alt)) { NewFolder(alt); return true; } break;
-    case 'D': if (ctrl && !Path().empty()) { ToggleFavourite(Path()); UpdateStar(); return true; } break;
+    case 'D': if (ctrl && IsFsPath(Path())) { ToggleFavourite(Path()); UpdateStar(); return true; } break;
     }
     return false;
 }
@@ -696,7 +782,7 @@ bool Pane::DropTarget(POINT screen, HWND under, wstring& dir) {
         ScreenToClient(list, &hi.pt);
         int i = ListView_HitTest(list, &hi);
         int hiIdx = -1;
-        if (i >= 0 && i < (int)t->items.size() && t->items[i].isDir() && !ListView_GetItemState(list, i, LVIS_SELECTED)) {
+        if (i >= 0 && i < (int)t->items.size() && t->items[i].isDir() && Mode() != 2 && !ListView_GetItemState(list, i, LVIS_SELECTED)) {
             dir = ItemPath(i);
             hiIdx = i;
         } else {
@@ -746,7 +832,7 @@ void Pane::OnNotify(NMHDR* nm, LRESULT& res) {
             auto d = (NMTTDISPINFOW*)nm;
             static wstring tipText;
             int i = (int)nm->idFrom;
-            tipText = i >= 0 && i < (int)tabs_.size() ? (tabs_[i]->path.empty() ? L"This PC" : tabs_[i]->path) : L"";
+            tipText = i >= 0 && i < (int)tabs_.size() ? (IsFsPath(tabs_[i]->path) ? tabs_[i]->path : DisplayName(tabs_[i]->path)) : L"";
             d->lpszText = (LPWSTR)tipText.c_str();
         }
         return;
@@ -781,7 +867,7 @@ void Pane::OnNotify(NMHDR* nm, LRESULT& res) {
         int n = (int)t->items.size();
         for (int k = 0; k < n; k++) {
             int i = (f->iStart + k) % n;
-            wstring name = t->path.empty() ? DriveDisplay(t->items[i]) : t->items[i].name;
+            wstring name = t->items[i].dtype ? DriveDisplay(t->items[i]) : t->items[i].name;
             if (IStarts(name, pre)) { res = i; return; }
         }
         return;
@@ -801,13 +887,14 @@ void Pane::OnNotify(NMHDR* nm, LRESULT& res) {
         return;
     }
     case LVN_BEGINDRAG: {
+        if (Mode() == 2) return;  // recycled items leave the bin via Restore only
         vector<wstring> sel = Selected();
         if (!sel.empty()) DragBegin(this, sel);
         return;
     }
     case LVN_BEGINLABELEDITW: {
         auto d = (NMLVDISPINFOW*)nm;
-        if (t->path.empty() || d->item.iItem < 0 || d->item.iItem >= (int)t->items.size()) { res = TRUE; return; }
+        if (!IsFsPath(t->path) || d->item.iItem < 0 || d->item.iItem >= (int)t->items.size()) { res = TRUE; return; }
         editing_ = true;
         PostMessageW(hwnd, WM_APP_SELNAME, d->item.iItem, 0);
         return;
@@ -872,7 +959,7 @@ LRESULT Pane::Proc(UINT m, WPARAM w, LPARAM l) {
         case ID_UP: GoUp(); break;
         case ID_REFRESH: Refresh(); break;
         case ID_NEWFOLDER: NewFolder(false); return 0;
-        case ID_STAR: if (!Path().empty()) { ToggleFavourite(Path()); UpdateStar(); } break;
+        case ID_STAR: if (IsFsPath(Path())) { ToggleFavourite(Path()); UpdateStar(); } break;
         case ID_LAYOUT: {
             HMENU m = CreatePopupMenu();
             const wchar_t* items[] = {L"1 pane	Ctrl+1", L"2 panes	Ctrl+2", L"3 panes	Ctrl+3"};
@@ -899,7 +986,7 @@ LRESULT Pane::Proc(UINT m, WPARAM w, LPARAM l) {
         if ((HWND)w == list || (HWND)w == hdr) {
             SetActive(this);
             if (pt.x != -1 && PtInRect(&hr, pt)) {
-                if (!Path().empty() && ColumnMenu(hwnd, pt) >= 0) RebuildAllColumns();
+                if (IsFsPath(Path()) && ColumnMenu(hwnd, pt) >= 0) RebuildAllColumns();
             } else {
                 ContextMenu(pt, pt.x == -1 && pt.y == -1);
             }

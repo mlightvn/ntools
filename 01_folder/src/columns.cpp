@@ -5,12 +5,14 @@ const ColDef g_colDefs[C_ALL] = {
     {L"Date created", 140, false}, {L"Date accessed", 140, false}, {L"Extension", 70, false},
     {L"Attributes", 70, false},
     {L"Type", 120, false}, {L"Free space", 100, true}, {L"Total size", 100, true},
+    {L"Original location", 260, false}, {L"Date deleted", 125, false},
 };
 bool g_colShown[C_FILECOLS] = {true, true, true, true, false, false, false, false};
-int g_colW[C_ALL] = {250, 110, 125, 80, 125, 125, 70, 70, 120, 100, 100};
+int g_colW[C_ALL] = {250, 110, 125, 80, 125, 125, 70, 70, 120, 100, 100, 260, 125};
 
-vector<int> VisibleColumns(bool drives) {
-    if (drives) return {C_NAME, C_DTYPE, C_FREE, C_TOTAL};
+vector<int> VisibleColumns(int mode) {
+    if (mode == 1) return {C_NAME, C_DTYPE, C_FREE, C_TOTAL};
+    if (mode == 2) return {C_NAME, C_ORIGIN, C_DELETED, C_SIZE, C_TYPE};
     vector<int> v;
     for (int c = 0; c < C_FILECOLS; c++) if (c == C_NAME || g_colShown[c]) v.push_back(c);
     return v;
@@ -23,7 +25,9 @@ wstring CellText(const Item& it, int col) {
     case C_MTIME: return FmtTime(it.mt);
     case C_CTIME: return FmtTime(it.ct);
     case C_ATIME: return FmtTime(it.at);
-    case C_SIZE: return it.isDir() ? L"" : FmtSize(it.size);
+    case C_SIZE: return it.isDir() && it.real.empty() ? L"" : FmtSize(it.size);  // recycled folders know their size
+    case C_ORIGIN: return it.label;
+    case C_DELETED: return FmtTime(it.mt);
     case C_EXT: { if (it.isDir()) return L""; const wchar_t* e = PathFindExtensionW(it.name.c_str()); return *e ? e + 1 : L""; }
     case C_ATTR: {
         wstring s;

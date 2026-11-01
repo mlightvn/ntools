@@ -65,6 +65,9 @@ private:
     int closeHot_ = -1;            // tab whose "×" is under the mouse
     bool tabTracking_ = false;
 
+    int Mode();                    // 0 folder, 1 This PC, 2 Recycle Bin
+    void BinDelete(bool all);
+    void BinRestore();
     bool CloseRect(int i, RECT* r);
     int CloseHit(POINT pt);
     void TabMenu(int i, POINT screen);

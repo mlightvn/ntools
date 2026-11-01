@@ -31,7 +31,14 @@ void OpenTerminal(const wstring& dir);
 void ShowProperties(const wstring& path);
 void ReleaseDrive(const wstring& root);   // panes showing this drive go back to This PC
 wstring SevenZipExe();                    // 7zG.exe / 7z.exe of an installed 7-Zip, "" if none
-void SevenZipAdd(const vector<wstring>& items, const wstring& archive);
+// password: "" = none; encryptNames hides the file list too (-mhe)
+void SevenZipAdd(const vector<wstring>& items, const wstring& archive, const wstring& password = L"", bool encryptNames = false);
+bool IsArchive(const wstring& path);      // zip, 7z, rar, tar, gz ...
+void ExtractArchives(const vector<wstring>& archives, bool toOwnFolder);  // async (7-Zip, or tar.exe)
+
+// Dialogs (dialogs.cpp)
+bool InputBox(const wchar_t* title, const wchar_t* prompt, wstring& value);
+bool PasswordBox(const wchar_t* title, wstring& password, bool& encryptNames);
 wstring ArchiveName(const vector<wstring>& items, const wchar_t* ext);  // unique "<first item>.ext" next to the items
 
 // External drives (drives.cpp)

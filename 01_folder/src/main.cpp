@@ -223,7 +223,7 @@ wstring ArchiveName(const vector<wstring>& items, const wchar_t* ext) {
     return Join(dir, UniqueName(dir, base + ext, false));
 }
 
-void SevenZipAdd(const vector<wstring>& items, const wstring& archive) {
+void SevenZipAdd(const vector<wstring>& items, const wstring& archive, const wstring& password, bool encryptNames) {
     wstring exe = SevenZipExe();
     if (exe.empty() || items.empty()) return;
     // names go through a UTF-8 list file (no command-line length limit, Unicode safe), relative to the folder
@@ -244,7 +244,9 @@ void SevenZipAdd(const vector<wstring>& items, const wstring& archive) {
     WriteFile(f, data.data(), (DWORD)data.size(), &wr, nullptr);
     CloseHandle(f);
     wstring dir = Parent(items[0]);
-    wstring cmd = L"\"" + exe + L"\" a -t7z \"" + archive + L"\" -scsUTF-8 @\"" + list + L"\"";
+    wstring cmd = L"\"" + exe + L"\" a -t7z \"" + archive + L"\" -scsUTF-8";
+    if (!password.empty()) cmd += L" \"-p" + password + L"\"" + (encryptNames ? L" -mhe=on" : L"");  // AES-256
+    cmd += L" @\"" + list + L"\"";
     STARTUPINFOW si{sizeof(si)};
     PROCESS_INFORMATION pi{};
     bool gui = IStarts(FileName(exe), L"7zG");
@@ -260,6 +262,66 @@ void SevenZipAdd(const vector<wstring>& items, const wstring& archive) {
         CloseHandle(proc);
         DeleteFileW(list.c_str());
         PostMessageW(g_main, WM_APP_OPDONE, 0, (LPARAM)new vector<wstring>{dir});
+    }).detach();
+}
+
+bool IsArchive(const wstring& path) {
+    static const wchar_t* exts[] = {L".zip", L".7z", L".rar", L".tar", L".gz", L".tgz", L".bz2", L".tbz2", L".xz", L".txz"};
+    const wchar_t* e = PathFindExtensionW(path.c_str());
+    for (auto x : exts) if (!lstrcmpiW(e, x)) return true;
+    return false;
+}
+
+// "photos.tar.gz" -> "photos"
+static wstring ArchiveBase(const wstring& path) {
+    wstring b = FileName(path);
+    for (int i = 0; i < 2; i++) {
+        size_t dot = b.find_last_of(L'.');
+        if (dot == wstring::npos || dot == 0) break;
+        wstring e = b.substr(dot);
+        b.resize(dot);
+        if (lstrcmpiW(e.c_str(), L".gz") && lstrcmpiW(e.c_str(), L".bz2") && lstrcmpiW(e.c_str(), L".xz")) break;  // only ".tar.*" has two parts
+    }
+    return b;
+}
+
+// 7-Zip (7zG shows progress and asks for passwords itself); tar.exe that ships with Windows otherwise.
+void ExtractArchives(const vector<wstring>& archives, bool toOwnFolder) {
+    wstring exe = SevenZipExe();
+    std::thread([archives, toOwnFolder, exe] {
+        auto dirs = new vector<wstring>();
+        wstring errors;
+        for (auto& a : archives) {
+            wstring dir = Parent(a), target = dir;
+            if (toOwnFolder) target = Join(dir, UniqueName(dir, ArchiveBase(a), false));
+            wstring cmd;
+            DWORD flags = 0;
+            if (!exe.empty()) {
+                cmd = L"\"" + exe + L"\" x \"" + a + L"\" \"-o" + target + L"\"";
+                if (!IStarts(FileName(exe), L"7zG")) flags = CREATE_NO_WINDOW;
+            } else {
+                CreateDirectoryW(target.c_str(), nullptr);
+                cmd = L"tar.exe -xf \"" + a + L"\" -C \"" + target + L"\"";
+                flags = CREATE_NO_WINDOW;
+            }
+            STARTUPINFOW si{sizeof(si)};
+            PROCESS_INFORMATION pi{};
+            if (!CreateProcessW(nullptr, &cmd[0], nullptr, nullptr, FALSE, flags, nullptr, dir.c_str(), &si, &pi)) {
+                errors += FileName(a) + L": " + ErrText(GetLastError()) + L"\n";
+                continue;
+            }
+            WaitForSingleObject(pi.hProcess, INFINITE);
+            DWORD code = 0;
+            GetExitCodeProcess(pi.hProcess, &code);
+            CloseHandle(pi.hProcess);
+            CloseHandle(pi.hThread);
+            // 7zG reports its own errors; tar.exe is silent, so tell the user
+            if (code != 0 && exe.empty())
+                errors += FileName(a) + L": tar.exe could not extract it (exit code " + std::to_wstring(code) + L"). Installing 7-Zip adds support for more formats and passwords.\n";
+            dirs->push_back(dir);
+        }
+        if (!errors.empty()) PostMessageW(g_main, WM_APP_MESSAGE, 0, (LPARAM)new wstring(L"Extract failed:\n\n" + errors));
+        PostMessageW(g_main, WM_APP_OPDONE, 0, (LPARAM)dirs);
     }).detach();
 }
 
@@ -432,14 +494,22 @@ static LRESULT CALLBACK MainProc(HWND h, UINT m, WPARAM w, LPARAM l) {
     }
     case WM_DROPFILES: DropExternal((HDROP)w); return 0;
     case WM_APP_EJECTED: OnEjected(l); return 0;
+    case WM_APP_FOCUSLIST: ActivePane()->FocusList(); return 0;
+    case WM_APP_MESSAGE: {  // text from a background thread
+        std::unique_ptr<wstring> msg((wstring*)l);
+        MessageBoxW(h, msg->c_str(), APP_NAME, MB_ICONWARNING);
+        return 0;
+    }
     case WM_CLIPBOARDUPDATE:
         if (GetClipboardOwner() != h) ClearCutSet();
         return 0;
     case WM_APP_OPDONE: {
         std::unique_ptr<vector<wstring>> dirs((vector<wstring>*)l);
-        for (int i = 0; i < 3; i++)
+        for (int i = 0; i < 3; i++) {
+            if (IsVirtual(g_panes[i]->Path())) { g_panes[i]->Refresh(); continue; }  // Recycle Bin view: any op may change it
             for (auto& d : *dirs)
                 if (IEq(g_panes[i]->Path(), d)) { g_panes[i]->Refresh(); break; }
+        }
         return 0;
     }
     case WM_DEVICECHANGE:

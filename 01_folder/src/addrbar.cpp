@@ -35,7 +35,8 @@ void AddrBar::SetPath(const wstring& p) {
 void AddrBar::Layout(HDC dc) {
     vector<Seg> all;
     all.push_back({L"This PC", L""});
-    if (!path_.empty()) {
+    if (IsVirtual(path_)) all.push_back({DisplayName(path_), path_});
+    else if (!path_.empty()) {
         size_t pos;
         wstring root;
         if (path_.rfind(L"\\\\", 0) == 0) {  // \\server\share
@@ -113,7 +114,7 @@ void AddrBar::Paint(HDC dc) {
         SelectObject(dc, g_font);
         SetTextColor(dc, GetSysColor(COLOR_WINDOWTEXT));
         DrawTextW(dc, s.text.c_str(), -1, &s.r, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
-        if (!s.more) {
+        if (!s.more && !IsVirtual(s.path)) {  // virtual locations have no sub-folders
             SelectObject(dc, g_iconFont);
             SetTextColor(dc, RGB(110, 110, 110));
             DrawTextW(dc, L"\uE76C", -1, &s.arrow, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
@@ -166,7 +167,7 @@ void AddrBar::Click(POINT pt) {
             DestroyMenu(m);
             if (r > 0) owner_->Navigate(hidden_[r - 1]);
         } else if (arrow) {
-            FolderMenu(s);
+            if (!IsVirtual(s.path)) FolderMenu(s);
         } else {
             owner_->Navigate(s.path);
         }
@@ -191,7 +192,7 @@ void AddrBar::BeginEdit() {
     if (edit_) { SetFocus(edit_); SendMessageW(edit_, EM_SETSEL, 0, -1); return; }
     RECT rc; GetClientRect(hwnd, &rc);
     int h = rc.bottom - S(4);
-    edit_ = CreateWindowExW(0, L"EDIT", path_.empty() ? L"This PC" : path_.c_str(), WS_CHILD | WS_VISIBLE | ES_AUTOHSCROLL,
+    edit_ = CreateWindowExW(0, L"EDIT", IsFsPath(path_) ? path_.c_str() : DisplayName(path_).c_str(), WS_CHILD | WS_VISIBLE | ES_AUTOHSCROLL,
                             S(6), (rc.bottom - h) / 2 + S(1), rc.right - S(10), h, hwnd, nullptr, g_inst, nullptr);
     SendMessageW(edit_, WM_SETFONT, (WPARAM)g_font, TRUE);
     SetWindowSubclass(edit_, EditProc, 1, (DWORD_PTR)this);

@@ -1,4 +1,5 @@
 #include "fileops.h"
+#include "fs.h"
 #include <thread>
 #include <mutex>
 #include <condition_variable>
@@ -6,6 +7,7 @@
 #include <atomic>
 #include <cstdint>
 #include <zlib.h>
+#include <sddl.h>
 
 namespace {
 
@@ -26,7 +28,7 @@ DWORD g_jobStart = 0;
 HWND g_prog = nullptr, g_pTitle, g_pName_, g_pBar, g_pCancel;
 
 enum { R_RETRY = 101, R_REPLACE = 101, R_SKIP = 102, R_KEEPBOTH = 103, R_CANCEL = IDCANCEL };
-enum { WM_PROG_START = WM_APP + 50, WM_PROG_END };
+enum { WM_PROG_START = WM_APP + 50, WM_PROG_END, WM_PROG_REPORT };
 
 struct Ask { bool conflict; wstring a, b, c; int result = R_CANCEL; bool all = false; };
 
@@ -153,27 +155,97 @@ bool CopyItem(const wstring& src, const wstring& dst, int depth = 0) {
     return true;
 }
 
-bool DeleteTree(const wstring& p) {
+// Items that could not be deleted (locked, access denied); reported once when the job ends.
+vector<wstring> g_failed;
+
+// "rm"-style delete: one open + POSIX delete that ignores the read-only flag (no extra attribute calls).
+bool FastDelete(const wstring& p, bool dir) {
+    const auto kDispositionEx = (FILE_INFO_BY_HANDLE_CLASS)21;  // FileDispositionInfoEx (Win10 1809+), missing in MinGW headers
+    HANDLE h = CreateFileW(p.c_str(), DELETE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING,
+                           FILE_FLAG_OPEN_REPARSE_POINT | (dir ? FILE_FLAG_BACKUP_SEMANTICS : 0), nullptr);
+    if (h != INVALID_HANDLE_VALUE) {
+        FILE_DISPOSITION_INFO_EX info{FILE_DISPOSITION_FLAG_DELETE | FILE_DISPOSITION_FLAG_POSIX_SEMANTICS | FILE_DISPOSITION_FLAG_IGNORE_READONLY_ATTRIBUTE};
+        BOOL ok = SetFileInformationByHandle(h, kDispositionEx, &info, sizeof(info));
+        DWORD err = GetLastError();
+        CloseHandle(h);
+        if (ok) return true;
+        SetLastError(err);
+    }
+    // older Windows / other file systems: classic path
+    SetFileAttributesW(p.c_str(), dir ? FILE_ATTRIBUTE_DIRECTORY : FILE_ATTRIBUTE_NORMAL);
+    return dir ? RemoveDirectoryW(p.c_str()) : DeleteFileW(p.c_str());
+}
+
+// attr comes from the parent's directory listing, so no extra GetFileAttributes per item
+bool DeleteTree(const wstring& p, DWORD attr = INVALID_FILE_ATTRIBUTES) {
     if (g_cancel) return false;
+    if (attr == INVALID_FILE_ATTRIBUTES && (attr = GetFileAttributesW(p.c_str())) == INVALID_FILE_ATTRIBUTES) return true;
+    bool dir = attr & FILE_ATTRIBUTE_DIRECTORY, ok = true;
+    if (dir && !(attr & FILE_ATTRIBUTE_REPARSE_POINT))  // never follow junctions / symlinks
+        Enum(p, [&](WIN32_FIND_DATAW& fd) { ok &= DeleteTree(Join(p, fd.cFileName), fd.dwFileAttributes); });
+    if (!ok) return false;  // a child is locked: the folder can't go either
+    if (!dir && (g_doneFiles & 255) == 0) SetName(L"Deleting", FileName(p));
+    if (!FastDelete(p, dir)) {
+        if (g_failed.size() < 1000) g_failed.push_back(p + L"\n      " + ErrText(GetLastError()));
+        return false;
+    }
+    if (!dir) g_doneFiles++;
+    return true;
+}
+
+// ---------- fast Recycle Bin: move the item into <volume>\$Recycle.Bin\<SID> + write its $I record ----------
+void P32(std::string& b, uint32_t v);
+void P64(std::string& b, uint64_t v);
+
+uint64_t TreeSize(const wstring& p, int depth = 0) {
+    uint64_t total = 0;
+    Enum(p, [&](WIN32_FIND_DATAW& fd) {
+        if (!(fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) total += ((uint64_t)fd.nFileSizeHigh << 32) | fd.nFileSizeLow;
+        else if (!(fd.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) && depth < 64) total += TreeSize(Join(p, fd.cFileName), depth + 1);
+    });
+    return total;
+}
+
+// Returns false when the fast path can't be used (caller falls back to SHFileOperation).
+bool FastRecycle(const wstring& p) {
     DWORD a = GetFileAttributesW(p.c_str());
     if (a == INVALID_FILE_ATTRIBUTES) return true;
-    if (a & FILE_ATTRIBUTE_READONLY) SetFileAttributesW(p.c_str(), a & ~FILE_ATTRIBUTE_READONLY);
-    if (a & FILE_ATTRIBUTE_DIRECTORY) {
-        bool ok = true;
-        if (!(a & FILE_ATTRIBUTE_REPARSE_POINT))  // never follow junctions / symlinks
-            Enum(p, [&](WIN32_FIND_DATAW& fd) { ok &= DeleteTree(Join(p, fd.cFileName)); });
-        if (!ok) return false;
-        while (!RemoveDirectoryW(p.c_str())) {
-            if (Error(L"Cannot delete folder", p, GetLastError()) != R_RETRY) return false;
-        }
-        return true;
+    wchar_t root[MAX_PATH], fs[32] = L"";
+    if (!GetVolumePathNameW(p.c_str(), root, MAX_PATH) || GetDriveTypeW(root) != DRIVE_FIXED) return false;
+    if (!GetVolumeInformationW(root, nullptr, 0, nullptr, nullptr, nullptr, fs, 32) || (lstrcmpiW(fs, L"NTFS") && lstrcmpiW(fs, L"ReFS"))) return false;
+    wstring sid = UserSid();
+    wstring bin = Join(Join(root, L"$Recycle.Bin"), sid);
+    if (sid.empty() || !IsDir(bin)) return false;  // let Windows create the bin (with its ACL) the first time
+    uint64_t size = (a & FILE_ATTRIBUTE_DIRECTORY) ? TreeSize(p) : 0;
+    if (!(a & FILE_ATTRIBUTE_DIRECTORY)) {
+        WIN32_FILE_ATTRIBUTE_DATA d;
+        if (GetFileAttributesExW(p.c_str(), GetFileExInfoStandard, &d)) size = ((uint64_t)d.nFileSizeHigh << 32) | d.nFileSizeLow;
     }
-    SetName(L"Deleting", FileName(p));
-    while (!DeleteFileW(p.c_str())) {
-        if (Error(L"Cannot delete", p, GetLastError()) != R_RETRY) return false;
+    wstring ext = PathFindExtensionW(FileName(p).c_str());
+    static const wchar_t kChars[] = L"ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    for (int attempt = 0; attempt < 20; attempt++) {
+        wstring id;
+        for (int i = 0; i < 6; i++) id += kChars[(GetTickCount() * 7919u + attempt * 104729u + i * 31u + rand()) % 36];
+        wstring r = Join(bin, L"$R" + id + ext), info = Join(bin, L"$I" + id + ext);
+        if (Exists(r) || Exists(info)) continue;
+        // $I record (format v2): version, original size, deletion time, path length, path
+        std::string rec;
+        P64(rec, 2);
+        P64(rec, size);
+        FILETIME now; GetSystemTimeAsFileTime(&now);
+        rec.append((const char*)&now, 8);
+        P32(rec, (uint32_t)p.size() + 1);
+        rec.append((const char*)p.c_str(), (p.size() + 1) * sizeof(wchar_t));
+        HANDLE h = CreateFileW(info.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, nullptr);
+        if (h == INVALID_HANDLE_VALUE) return false;
+        DWORD w;
+        BOOL wrote = WriteFile(h, rec.data(), (DWORD)rec.size(), &w, nullptr);
+        CloseHandle(h);
+        if (wrote && MoveFileExW(p.c_str(), r.c_str(), 0)) return true;  // same volume: just a rename
+        DeleteFileW(info.c_str());  // something inside is open, etc.
+        return false;
     }
-    g_doneFiles++;
-    return true;
+    return false;
 }
 
 bool SameVolume(const wstring& a, const wstring& b) {
@@ -418,6 +490,7 @@ void RunZip(Job& j) {
 
 void RunJob(Job& j) {
     g_conflictAll = 0; g_skipErrAll = false;
+    g_failed.clear();
     g_doneBytes = g_totalBytes = 0; g_doneFiles = g_totalFiles = 0;
     auto affected = new vector<wstring>();
     if (!j.dst.empty()) affected->push_back(j.type == OP_ZIP ? Parent(j.dst) : j.dst);
@@ -427,18 +500,25 @@ void RunJob(Job& j) {
         RunZip(j);
     } else if (j.type == OP_RECYCLE) {
         SetName(L"Moving to Recycle Bin", j.src.size() == 1 ? FileName(j.src[0]) : std::to_wstring(j.src.size()) + L" items");
-        wstring list;
-        for (auto& s : j.src) { list += s; list += L'\0'; }
-        list += L'\0';
-        SHFILEOPSTRUCTW op{};
-        op.hwnd = g_main;
-        op.wFunc = FO_DELETE;
-        op.pFrom = list.c_str();
-        op.fFlags = FOF_ALLOWUNDO | FOF_NOCONFIRMATION | FOF_SILENT | FOF_WANTNUKEWARNING;
-        SHFileOperationW(&op);
+        wstring slow;  // items the fast path can't take go through the Windows shell
+        for (auto& s : j.src) {
+            if (FastRecycle(s)) g_doneFiles++;
+            else { slow += s; slow += L'\0'; }
+        }
+        if (!slow.empty()) {
+            slow += L'\0';
+            SHFILEOPSTRUCTW op{};
+            op.hwnd = g_main;
+            op.wFunc = FO_DELETE;
+            op.pFrom = slow.c_str();
+            op.fFlags = FOF_ALLOWUNDO | FOF_NOCONFIRMATION | FOF_SILENT | FOF_WANTNUKEWARNING;
+            SHFileOperationW(&op);
+        }
+        SHUpdateRecycleBinIcon();
     } else if (j.type == OP_DELETE) {
         SetName(L"Deleting", L"");
         for (auto& s : j.src) if (!g_cancel) DeleteTree(s);
+        SHUpdateRecycleBinIcon();  // in case items were deleted from the Recycle Bin view
     } else {
         bool move = j.type == OP_MOVE;
         SetName(L"Calculating", L"");
@@ -457,6 +537,13 @@ void RunJob(Job& j) {
             else if (SameVolume(s, j.dst)) { MoveItem(s, dst); g_doneFiles++; }
             else if (CopyItem(s, dst) && !g_cancel) DeleteTree(s);
         }
+    }
+    if (!g_failed.empty()) {  // one summary instead of a dialog per locked file
+        auto msg = new wstring(std::to_wstring(g_failed.size()) + (g_failed.size() >= 1000 ? L"+" : L"") +
+                               L" item(s) could not be deleted (in use or access denied):\n\n");
+        for (size_t i = 0; i < g_failed.size() && i < 15; i++) *msg += g_failed[i] + L"\n";
+        if (g_failed.size() > 15) *msg += L"…";
+        PostMessageW(g_prog, WM_PROG_REPORT, 0, (LPARAM)msg);
     }
     PostMessageW(g_main, WM_APP_OPDONE, 0, (LPARAM)affected);
 }
@@ -516,6 +603,8 @@ void UpdateProgress() {
         SendMessageW(g_pBar, PBM_SETPOS, (WPARAM)(db * 1000 / tb), 0);
     } else if (g_totalFiles) {
         SendMessageW(g_pBar, PBM_SETPOS, g_doneFiles * 1000 / g_totalFiles, 0);
+    } else if (g_doneFiles) {
+        title += L"  " + std::to_wstring(g_doneFiles.load()) + L" items";  // deleting: total unknown (no pre-scan)
     }
     SetWindowTextW(g_pTitle, title.c_str());
     SetWindowTextW(g_pName_, name.c_str());
@@ -547,6 +636,11 @@ LRESULT CALLBACK ProgProc(HWND h, UINT m, WPARAM w, LPARAM l) {
     case WM_APP_ASK:
         ShowAsk(h, (Ask*)l);
         return 0;
+    case WM_PROG_REPORT: {
+        std::unique_ptr<wstring> msg((wstring*)l);
+        MessageBoxW(g_main, msg->c_str(), L"Delete", MB_ICONWARNING);
+        return 0;
+    }
     case WM_CTLCOLORSTATIC:
         SetBkColor((HDC)w, GetSysColor(COLOR_WINDOW));
         return (LRESULT)GetSysColorBrush(COLOR_WINDOW);
