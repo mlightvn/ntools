@@ -1,0 +1,52 @@
+# ===== Build output (rebuild with build.bat) =====
+build/
+*.exe
+*.o
+*.obj
+*.res
+*.pdb
+*.ilk
+*.lib
+*.a
+*.dll
+
+# ===== Personal settings / runtime data =====
+# nexplorer.ini holds your favourites, recent folders, profiles and window layout
+*.ini
+*.log
+*.tmp
+
+# ===== Editors / IDE =====
+.vscode/
+.vs/
+.idea/
+*.swp
+*~
+.claude/settings.local.json
+
+# ===== OS files =====
+Thumbs.db
+ehthumbs.db
+desktop.ini
+$RECYCLE.BIN/
+.DS_Store
+
+# ===== Common for future tools (Node / Python) =====
+node_modules/
+__pycache__/
+*.pyc
+.venv/
+venv/
+dist/
+.env
+.env.*
+
+# ===== Others =====
+*.zip
+*.7z
+*.tar
+*.gz
+*.bak
+*.mp4
+*.mp3
+*.wav

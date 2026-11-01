@@ -1,0 +1,379 @@
+// Profiles: named pane / tab layouts. A layout is saved only on demand (Ctrl+S);
+// the app always opens the current profile's saved layout (all panes at This PC if never saved).
+#include "app.h"
+#include "pane.h"
+
+namespace {
+
+struct Layout {
+    int panes = 2, active = 0;
+    double frac[3] = {1, 1, 1};
+    vector<wstring> tabs[3];  // "" = This PC
+    int cur[3] = {0, 0, 0};
+};
+
+vector<wstring> g_names;
+wstring g_cur;
+wstring g_saved;  // serialized layout of the current profile as last saved
+bool g_dirty = false;
+HWND g_btn = nullptr;
+
+wstring Sec(const wstring& name) { return L"Profile." + name; }
+wstring Key(const wchar_t* k, int i) { return k + std::to_wstring(i); }
+wstring Num(double d) { wchar_t b[32]; swprintf(b, 32, L"%.3f", d); return b; }
+
+void Normalize(Layout& L) {
+    L.panes = std::max(1, std::min(3, L.panes));
+    L.active = std::max(0, std::min(L.active, L.panes - 1));
+    for (int i = 0; i < 3; i++) {
+        if (L.tabs[i].empty()) L.tabs[i].push_back(L"");
+        L.cur[i] = std::max(0, std::min(L.cur[i], (int)L.tabs[i].size() - 1));
+    }
+}
+
+wstring JoinTabs(const vector<wstring>& v) {
+    wstring s;
+    for (size_t i = 0; i < v.size(); i++) s += (i ? L"|" : L"") + (v[i].empty() ? wstring(L"*") : v[i]);
+    return s;
+}
+
+vector<wstring> SplitTabs(const wstring& s) {
+    vector<wstring> v;
+    size_t b = 0;
+    while (!s.empty() && b <= s.size()) {
+        size_t e = s.find(L'|', b);
+        wstring p = s.substr(b, e == wstring::npos ? wstring::npos : e - b);
+        v.push_back(p == L"*" ? L"" : p);
+        if (e == wstring::npos) break;
+        b = e + 1;
+    }
+    return v;
+}
+
+wstring ToStr(const Layout& L) {
+    wstring s = L"panes=" + std::to_wstring(L.panes) + L"\nactive=" + std::to_wstring(L.active);
+    for (int i = 0; i < 3; i++)
+        s += L"\nfrac" + std::to_wstring(i) + L"=" + Num(L.frac[i]) + L"\np" + std::to_wstring(i) + L"=" + JoinTabs(L.tabs[i]) +
+             L"\nc" + std::to_wstring(i) + L"=" + std::to_wstring(L.cur[i]);
+    return s;
+}
+
+Layout Read(const wstring& name) {
+    Layout L;
+    wstring sec = Sec(name);
+    if (!IniGet(sec.c_str(), L"panes").empty()) {
+        L.panes = _wtoi(IniGet(sec.c_str(), L"panes").c_str());
+        L.active = _wtoi(IniGet(sec.c_str(), L"active", L"0").c_str());
+        for (int i = 0; i < 3; i++) {
+            L.frac[i] = std::max(0.1, _wtof(IniGet(sec.c_str(), Key(L"frac", i).c_str(), L"1").c_str()));
+            L.tabs[i] = SplitTabs(IniGet(sec.c_str(), Key(L"p", i).c_str()));
+            L.cur[i] = _wtoi(IniGet(sec.c_str(), Key(L"c", i).c_str(), L"0").c_str());
+        }
+    }
+    Normalize(L);
+    return L;
+}
+
+// returns false (GetLastError set) if the INI can't be written, e.g. the drive is locked or read-only
+bool Write(const wstring& name, const Layout& L) {
+    wstring sec = Sec(name);
+    if (!IniSet(sec.c_str(), L"panes", std::to_wstring(L.panes))) return false;
+    IniClearSection(sec.c_str());
+    IniSet(sec.c_str(), L"panes", std::to_wstring(L.panes));
+    IniSet(sec.c_str(), L"active", std::to_wstring(L.active));
+    for (int i = 0; i < 3; i++) {
+        IniSet(sec.c_str(), Key(L"frac", i).c_str(), Num(L.frac[i]));
+        IniSet(sec.c_str(), Key(L"p", i).c_str(), JoinTabs(L.tabs[i]));
+        IniSet(sec.c_str(), Key(L"c", i).c_str(), std::to_wstring(L.cur[i]));
+    }
+    return true;
+}
+
+Layout Capture() {
+    Layout L;
+    L.panes = g_paneCount;
+    L.active = g_active;
+    for (int i = 0; i < 3; i++) {
+        L.frac[i] = g_frac[i];
+        for (int t = 0; t < g_panes[i]->TabCount(); t++) L.tabs[i].push_back(g_panes[i]->TabPath(t));
+        L.cur[i] = g_panes[i]->CurTab();
+    }
+    Normalize(L);
+    return L;
+}
+
+void Apply(const Layout& L) {
+    g_paneCount = L.panes;
+    for (int i = 0; i < 3; i++) {
+        g_frac[i] = L.frac[i];
+        g_panes[i]->ResetTabs(L.tabs[i], L.cur[i]);
+    }
+    g_active = L.active;
+    Relayout();
+    for (int i = 0; i < 3; i++) g_panes[i]->PaintBorder();
+    ActivePane()->FocusList();
+}
+
+void SaveList() {
+    wstring s;
+    for (size_t i = 0; i < g_names.size(); i++) s += (i ? L"|" : L"") + g_names[i];
+    IniSet(L"Profiles", L"list", s);
+    IniSet(L"Profiles", L"current", g_cur);
+}
+
+void UpdateUi() {
+    g_dirty = ToStr(Capture()) != g_saved;
+    wstring title = wstring(APP_NAME) + L"  —  " + g_cur + (g_dirty ? L"  ●" : L"");
+    SetWindowTextW(g_main, title.c_str());
+    InvalidateRect(g_btn, nullptr, FALSE);
+}
+
+int Find(const wstring& name) {
+    for (size_t i = 0; i < g_names.size(); i++) if (IEq(g_names[i], name)) return (int)i;
+    return -1;
+}
+
+// trims and checks a new profile name; `except` is the name being renamed
+bool Valid(wstring& name, const wstring& except) {
+    while (!name.empty() && iswspace(name.back())) name.pop_back();
+    while (!name.empty() && iswspace(name[0])) name.erase(0, 1);
+    const wchar_t* err = nullptr;
+    if (name.empty()) err = L"Please enter a name.";
+    else if (name.find_first_of(L"|[]=") != wstring::npos) err = L"A profile name can't contain | [ ] =";
+    else if (name.size() > 40) err = L"The name is too long (max 40 characters).";
+    else if (Find(name) >= 0 && !IEq(name, except)) err = L"A profile with this name already exists.";
+    if (err) MessageBoxW(g_main, err, L"Profile", MB_ICONWARNING);
+    return !err;
+}
+
+// ---------- small modal input box ----------
+struct InputState { wstring value; bool ok = false, done = false; HWND edit = nullptr; };
+
+LRESULT CALLBACK InputProc(HWND h, UINT m, WPARAM w, LPARAM l) {
+    auto st = (InputState*)GetWindowLongPtrW(h, GWLP_USERDATA);
+    if (st) {
+        switch (m) {
+        case WM_COMMAND:
+            if (LOWORD(w) == IDOK) {
+                wchar_t b[256];
+                GetWindowTextW(st->edit, b, 256);
+                st->value = b;
+                st->ok = st->done = true;
+                return 0;
+            }
+            if (LOWORD(w) == IDCANCEL) { st->done = true; return 0; }
+            break;
+        case WM_CLOSE: st->done = true; return 0;
+        case WM_ACTIVATE:  // keep typing going to the name box after an app switch
+            if (LOWORD(w) != WA_INACTIVE) { SetFocus(st->edit); return 0; }
+            break;
+        case WM_CTLCOLORSTATIC:
+            SetBkColor((HDC)w, GetSysColor(COLOR_WINDOW));
+            return (LRESULT)GetSysColorBrush(COLOR_WINDOW);
+        }
+    }
+    return DefWindowProcW(h, m, w, l);
+}
+
+bool InputBox(const wchar_t* title, const wchar_t* prompt, wstring& value) {
+    static bool reg = false;
+    if (!reg) {
+        WNDCLASSW wc{};
+        wc.lpfnWndProc = InputProc;
+        wc.hInstance = g_inst;
+        wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
+        wc.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
+        wc.lpszClassName = L"NxInput";
+        RegisterClassW(&wc);
+        reg = true;
+    }
+    InputState st;
+    RECT rc{0, 0, S(360), S(122)};
+    AdjustWindowRectEx(&rc, WS_CAPTION | WS_SYSMENU, FALSE, WS_EX_DLGMODALFRAME);
+    int w = rc.right - rc.left, hh = rc.bottom - rc.top;
+    RECT mr; GetWindowRect(g_main, &mr);
+    HWND h = CreateWindowExW(WS_EX_DLGMODALFRAME, L"NxInput", title, WS_POPUP | WS_CAPTION | WS_SYSMENU,
+                             (mr.left + mr.right - w) / 2, (mr.top + mr.bottom - hh) / 2, w, hh, g_main, nullptr, g_inst, nullptr);
+    HWND lbl = CreateWindowW(L"STATIC", prompt, WS_CHILD | WS_VISIBLE, S(14), S(12), S(332), S(20), h, nullptr, g_inst, nullptr);
+    st.edit = CreateWindowExW(WS_EX_CLIENTEDGE, L"EDIT", value.c_str(), WS_CHILD | WS_VISIBLE | WS_TABSTOP | ES_AUTOHSCROLL,
+                              S(14), S(36), S(332), S(26), h, nullptr, g_inst, nullptr);
+    HWND ok = CreateWindowW(L"BUTTON", L"OK", WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_DEFPUSHBUTTON, S(182), S(80), S(80), S(28), h, (HMENU)IDOK, g_inst, nullptr);
+    HWND cancel = CreateWindowW(L"BUTTON", L"Cancel", WS_CHILD | WS_VISIBLE | WS_TABSTOP, S(266), S(80), S(80), S(28), h, (HMENU)IDCANCEL, g_inst, nullptr);
+    for (HWND c : {lbl, st.edit, ok, cancel}) SendMessageW(c, WM_SETFONT, (WPARAM)g_font, FALSE);
+    SetWindowLongPtrW(h, GWLP_USERDATA, (LONG_PTR)&st);
+    EnableWindow(g_main, FALSE);
+    ShowWindow(h, SW_SHOW);
+    SetFocus(st.edit);
+    SendMessageW(st.edit, EM_SETSEL, 0, -1);
+    MSG msg;
+    while (!st.done) {
+        if (GetMessageW(&msg, nullptr, 0, 0) <= 0) { PostQuitMessage((int)msg.wParam); break; }
+        if (!IsDialogMessageW(h, &msg)) { TranslateMessage(&msg); DispatchMessageW(&msg); }
+    }
+    EnableWindow(g_main, TRUE);
+    DestroyWindow(h);
+    SetForegroundWindow(g_main);
+    if (st.ok) value = st.value;
+    return st.ok;
+}
+
+// ---------- actions ----------
+void SwitchTo(const wstring& name) {
+    if (IEq(name, g_cur)) return;
+    UpdateUi();
+    if (g_dirty) {
+        wstring q = L"Profile \"" + g_cur + L"\" has unsaved changes.\n\nSave them before switching?";
+        int r = MessageBoxW(g_main, q.c_str(), L"Profile", MB_YESNOCANCEL | MB_ICONQUESTION);
+        if (r == IDCANCEL) return;
+        if (r == IDYES) ProfileSave();
+    }
+    g_cur = name;
+    Layout L = Read(g_cur);
+    Apply(L);
+    g_saved = ToStr(L);
+    SaveList();
+    UpdateUi();
+}
+
+void SaveAs() {
+    wstring name = L"Profile " + std::to_wstring(g_names.size() + 1);
+    do {
+        if (!InputBox(L"Save as new profile", L"Name of the new profile:", name)) return;
+    } while (!Valid(name, L""));
+    g_names.push_back(name);
+    g_cur = name;
+    SaveList();
+    ProfileSave();
+}
+
+void Rename() {
+    wstring name = g_cur;
+    do {
+        if (!InputBox(L"Rename profile", L"New name:", name)) return;
+    } while (!Valid(name, g_cur));
+    if (name == g_cur) return;
+    if (!IniGet(Sec(g_cur).c_str(), L"panes").empty()) Write(name, Read(g_cur));
+    IniClearSection(Sec(g_cur).c_str());
+    g_names[Find(g_cur)] = name;
+    g_cur = name;
+    SaveList();
+    UpdateUi();
+}
+
+void Delete() {
+    if (g_names.size() <= 1) return;
+    wstring q = L"Delete profile \"" + g_cur + L"\"?";
+    if (MessageBoxW(g_main, q.c_str(), L"Profile", MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON2) != IDYES) return;
+    IniClearSection(Sec(g_cur).c_str());
+    g_names.erase(g_names.begin() + Find(g_cur));
+    g_cur = g_names[0];
+    Layout L = Read(g_cur);
+    Apply(L);
+    g_saved = ToStr(L);
+    SaveList();
+    UpdateUi();
+}
+
+}  // namespace
+
+void ProfilesInit() {
+    for (auto& n : SplitTabs(IniGet(L"Profiles", L"list")))
+        if (!n.empty() && Find(n) < 0) g_names.push_back(n);
+    if (g_names.empty()) g_names.push_back(L"Default");
+    g_cur = IniGet(L"Profiles", L"current");
+    if (Find(g_cur) < 0) g_cur = g_names[0];
+    Layout L = Read(g_cur);
+    Apply(L);
+    g_saved = ToStr(L);
+    SaveList();
+    UpdateUi();
+}
+
+void ProfileSave() {
+    Layout L = Capture();
+    if (!Write(g_cur, L)) {  // keep the unsaved marker and tell the user why
+        wstring msg = L"Could not save profile \"" + g_cur + L"\".\n\n" + ErrText(GetLastError()) + L"\n\nSettings file:  nexplorer.ini (next to nexplorer.exe)";
+        MessageBoxW(g_main, msg.c_str(), L"Profile", MB_ICONERROR);
+        return;
+    }
+    g_saved = ToStr(L);
+    UpdateUi();
+}
+
+void ProfileTick() {
+    if (!g_btn || !IsWindowVisible(g_main)) return;
+    if ((ToStr(Capture()) != g_saved) != g_dirty) UpdateUi();
+}
+
+void ProfileButtonCreate(HWND parent) {
+    g_btn = CreateWindowW(L"BUTTON", L"", WS_CHILD | WS_VISIBLE | BS_OWNERDRAW, 0, 0, 10, 10, parent, nullptr, g_inst, nullptr);
+    HWND tip = CreateWindowExW(WS_EX_TOPMOST, TOOLTIPS_CLASSW, nullptr, WS_POPUP | TTS_ALWAYSTIP, 0, 0, 0, 0, parent, nullptr, g_inst, nullptr);
+    TTTOOLINFOW ti{sizeof(ti), TTF_IDISHWND | TTF_SUBCLASS, parent, (UINT_PTR)g_btn};
+    ti.lpszText = (LPWSTR)L"Profile (Ctrl+P) — Ctrl+S saves the current panes and tabs";
+    SendMessageW(tip, TTM_ADDTOOLW, 0, (LPARAM)&ti);
+}
+
+HWND ProfileButton() { return g_btn; }
+
+void ProfileDrawButton(DRAWITEMSTRUCT* d) {
+    RECT r = d->rcItem;
+    HDC dc = d->hDC;
+    HBRUSH bg = CreateSolidBrush(d->itemState & ODS_SELECTED ? RGB(204, 228, 247) : RGB(243, 243, 243));
+    HBRUSH fr = CreateSolidBrush(RGB(222, 222, 222));
+    FillRect(dc, &r, bg);
+    FrameRect(dc, &r, fr);
+    DeleteObject(bg);
+    DeleteObject(fr);
+    SetBkMode(dc, TRANSPARENT);
+    RECT ic{r.left + S(6), r.top, r.left + S(30), r.bottom};
+    SelectObject(dc, g_iconFont);
+    SetTextColor(dc, RGB(0, 95, 184));
+    DrawTextW(dc, L"", -1, &ic, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+    RECT tx{r.left + S(34), r.top, r.right - S(26), r.bottom};
+    SelectObject(dc, g_fontBold);
+    SetTextColor(dc, RGB(30, 30, 30));
+    DrawTextW(dc, g_cur.c_str(), -1, &tx, DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS | DT_NOPREFIX);
+    if (g_dirty) {  // unsaved marker right after the name
+        RECT m = tx;
+        DrawTextW(dc, g_cur.c_str(), -1, &m, DT_SINGLELINE | DT_CALCRECT | DT_NOPREFIX);
+        RECT dot{std::min(m.right, tx.right) + S(6), r.top, tx.right + S(14), r.bottom};
+        SelectObject(dc, g_font);
+        SetTextColor(dc, RGB(230, 120, 0));
+        DrawTextW(dc, L"●", -1, &dot, DT_VCENTER | DT_SINGLELINE);
+    }
+    RECT ch{r.right - S(24), r.top, r.right - S(4), r.bottom};
+    SelectObject(dc, g_iconFontSmall);
+    SetTextColor(dc, RGB(90, 90, 90));
+    DrawTextW(dc, L"", -1, &ch, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+}
+
+void ProfileMenu(HWND anchor) {
+    UpdateUi();
+    enum { M_SAVE = 1, M_SAVEAS, M_RENAME, M_DELETE, M_RESET, M_FIRST = 100 };
+    HMENU m = CreatePopupMenu();
+    for (size_t i = 0; i < g_names.size(); i++)
+        AppendMenuW(m, MF_STRING | (IEq(g_names[i], g_cur) ? MF_CHECKED : 0), M_FIRST + i, g_names[i].c_str());
+    AppendMenuW(m, MF_SEPARATOR, 0, nullptr);
+    AppendMenuW(m, MF_STRING, M_SAVE, g_dirty ? L"Save profile  ●\tCtrl+S" : L"Save profile\tCtrl+S");
+    AppendMenuW(m, MF_STRING, M_SAVEAS, L"Save as new profile…");
+    AppendMenuW(m, MF_STRING, M_RENAME, L"Rename profile…");
+    AppendMenuW(m, MF_STRING | (g_names.size() > 1 ? 0 : MF_GRAYED), M_DELETE, L"Delete profile");
+    AppendMenuW(m, MF_SEPARATOR, 0, nullptr);
+    AppendMenuW(m, MF_STRING, M_RESET, L"Reset layout to This PC");
+    RECT r;
+    GetWindowRect(anchor && IsWindowVisible(anchor) ? anchor : ActivePane()->hwnd, &r);
+    POINT pt = anchor && IsWindowVisible(anchor) ? POINT{r.left, r.bottom} : POINT{r.left + S(20), r.top + S(60)};
+    int c = TrackPopupMenu(m, TPM_RETURNCMD, pt.x, pt.y, 0, g_main, nullptr);
+    DestroyMenu(m);
+    switch (c) {
+    case 0: break;
+    case M_SAVE: ProfileSave(); break;
+    case M_SAVEAS: SaveAs(); break;
+    case M_RENAME: Rename(); break;
+    case M_DELETE: Delete(); break;
+    case M_RESET: { Layout L; Normalize(L); Apply(L); UpdateUi(); break; }
+    default:
+        if (c >= M_FIRST && c < M_FIRST + (int)g_names.size()) SwitchTo(g_names[c - M_FIRST]);
+    }
+    ActivePane()->FocusList();
+}
