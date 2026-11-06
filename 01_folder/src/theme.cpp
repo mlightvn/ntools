@@ -28,6 +28,13 @@ const Theme kThemes[] = {
      RGB(19, 46, 32), RGB(74, 222, 128), RGB(19, 23, 27), RGB(11, 13, 15),
      RGB(16, 19, 22), RGB(26, 30, 34),
      RGB(110, 200, 140), RGB(125, 133, 144), ICON_LINE, true, 24},
+    // Nexus: futuristic HUD - near-black, neon accent (cyan / magenta / lime / amber), hexagon tiles, corner brackets
+    {L"nexus", L"Nexus", true, RGB(2, 6, 10), RGB(4, 13, 19), RGB(4, 13, 19), RGB(4, 13, 19), RGB(14, 54, 64),
+     RGB(214, 246, 251), RGB(127, 163, 173), RGB(72, 110, 120),
+     RGB(25, 240, 255), RGB(2, 6, 10),
+     RGB(7, 43, 50), RGB(25, 240, 255), RGB(8, 32, 42), RGB(8, 38, 48),
+     RGB(5, 18, 24), RGB(6, 26, 34),
+     RGB(25, 240, 255), RGB(127, 163, 173), ICON_HEX, false, 40, 0, STYLE_HUD},
     // Glass: frosted panels over the blurred desktop wallpaper (or the chosen picture)
     {L"glass", L"Glass", true, RGB(14, 16, 22), RGB(34, 38, 48), RGB(26, 29, 38), RGB(22, 25, 33), RGB(92, 100, 118),
      RGB(244, 246, 250), RGB(200, 206, 218), RGB(150, 158, 174),
@@ -101,7 +108,25 @@ bool ExtIn(const wchar_t* ext, std::initializer_list<const wchar_t*> list) {
 
 }  // namespace
 
-const Theme* g_theme = &kThemes[0];
+namespace {
+Theme g_live = kThemes[0];   // the active theme (a copy, so Nexus can swap its accent)
+const COLORREF kNexusAccents[] = {RGB(25, 240, 255), RGB(255, 43, 214), RGB(182, 255, 59), RGB(255, 176, 32)};
+const wchar_t* kNexusAccentNames[] = {L"Cyan", L"Magenta", L"Lime", L"Amber"};
+int g_nexusAccent = 0;
+
+void Activate(int i) {
+    g_index = i;
+    g_live = kThemes[i];
+    if (g_live.style == STYLE_HUD) {
+        COLORREF a = kNexusAccents[g_nexusAccent];
+        g_live.accent = g_live.selBorder = g_live.folder = a;
+        g_live.sel = Blend(a, g_live.pane, 14);
+        g_live.hot = Blend(a, g_live.pane, 7);
+    }
+}
+}  // namespace
+
+const Theme* g_theme = &g_live;
 
 int ThemeCount() { return (int)(sizeof(kThemes) / sizeof(kThemes[0])); }
 const Theme& ThemeAt(int i) { return kThemes[i]; }
@@ -110,10 +135,45 @@ int ThemeIndex() { return g_index; }
 void ThemeInit() {
     LoadUxtheme();
     wstring id = IniGet(L"Window", L"theme", L"void");
-    for (int i = 0; i < ThemeCount(); i++) if (IEq(id, kThemes[i].id)) g_index = i;
-    g_theme = &kThemes[g_index];
+    g_nexusAccent = std::max(0, std::min(3, _wtoi(IniGet(L"Window", L"nexusAccent", L"0").c_str())));
+    int idx = 0;
+    for (int i = 0; i < ThemeCount(); i++) if (IEq(id, kThemes[i].id)) idx = i;
+    Activate(idx);
     ApplyAppMode();
 }
+
+COLORREF Mix(COLORREF a, COLORREF b, int pctA) { return Blend(a, b, pctA); }
+bool Hud() { return g_theme->style == STYLE_HUD; }
+
+void HudCorners(HDC dc, const RECT& r, int which) {
+    if (!Hud()) return;
+    int len = S(16), th = S(2);
+    COLORREF a = g_theme->accent;
+    if (which & 1) {
+        Fill(dc, {r.left, r.top, r.left + len, r.top + th}, a);
+        Fill(dc, {r.left, r.top, r.left + th, r.top + len}, a);
+        Fill(dc, {r.right - len, r.top, r.right, r.top + th}, a);
+        Fill(dc, {r.right - th, r.top, r.right, r.top + len}, a);
+    }
+    if (which & 2) {
+        Fill(dc, {r.left, r.bottom - th, r.left + len, r.bottom}, a);
+        Fill(dc, {r.left, r.bottom - len, r.left + th, r.bottom}, a);
+        Fill(dc, {r.right - len, r.bottom - th, r.right, r.bottom}, a);
+        Fill(dc, {r.right - th, r.bottom - len, r.right, r.bottom}, a);
+    }
+}
+
+void HudGrid(HDC dc, HWND hwnd, const RECT& r) {
+    if (!Hud()) return;
+    int step = S(40);
+    POINT o{0, 0};
+    if (hwnd != g_main) MapWindowPoints(hwnd, g_main, &o, 1);  // one grid across all windows
+    COLORREF c = Blend(g_theme->accent, g_theme->app, 6);
+    for (int x = r.left + ((step - (o.x + r.left) % step) % step); x < r.right; x += step) Fill(dc, {x, r.top, x + 1, r.bottom}, c);
+    for (int y = r.top + ((step - (o.y + r.top) % step) % step); y < r.bottom; y += step) Fill(dc, {r.left, y, r.right, y + 1}, c);
+}
+
+wstring HudLabel(const wstring& s) { return Hud() ? L"// " + s : s; }
 
 void ThemeFonts() {
     for (HFONT f : {g_font, g_fontBold, g_iconFont, g_iconFontSmall, g_fontMono, g_fontSmall, g_fontTitle}) if (f) DeleteObject(f);
@@ -121,7 +181,16 @@ void ThemeFonts() {
     SystemParametersInfoForDpi(SPI_GETNONCLIENTMETRICS, sizeof(ncm), &ncm, 0, g_dpi);
     const wchar_t* mono = HasFont(L"Cascadia Mono") ? L"Cascadia Mono" : L"Consolas";
     int px = -ncm.lfMessageFont.lfHeight;
-    if (g_theme->monoUI) {
+    if (g_theme->style == STYLE_HUD) {  // the design's fonts when installed, else Bahnschrift (ships with Windows)
+        const wchar_t* ui = HasFont(L"Rajdhani") ? L"Rajdhani" : L"Bahnschrift";
+        const wchar_t* head = HasFont(L"Orbitron") ? L"Orbitron" : ui;
+        int up = HasFont(L"Rajdhani") ? S(3) : S(1);
+        g_font = MakeFont(ui, px + up, FW_NORMAL);
+        g_fontBold = MakeFont(ui, px + up, FW_SEMIBOLD);
+        g_fontTitle = MakeFont(head, px + S(4), FW_BOLD);
+        g_fontSmall = MakeFont(head, px - S(2), FW_SEMIBOLD);
+        if (HasFont(L"Share Tech Mono")) mono = L"Share Tech Mono";
+    } else if (g_theme->monoUI) {
         g_font = MakeFont(mono, px, FW_NORMAL);
         g_fontBold = MakeFont(mono, px, FW_SEMIBOLD);
         g_fontTitle = MakeFont(mono, px + S(2), FW_SEMIBOLD);
@@ -154,8 +223,7 @@ void ThemeTitleBar(HWND h) {
 
 void ThemeSet(int i) {
     if (i < 0 || i >= ThemeCount()) return;
-    g_index = i;
-    g_theme = &kThemes[i];
+    Activate(i);
     IniSet(L"Window", L"theme", g_theme->id);
     ApplyAppMode();
     BackdropReset();
@@ -166,6 +234,11 @@ void ThemeMenu(POINT pt) {
     HMENU m = CreatePopupMenu();
     for (int i = 0; i < ThemeCount(); i++)
         AppendMenuW(m, MF_STRING | (i == g_index ? MF_CHECKED : 0), 100 + i, (wstring(L"Theme: ") + kThemes[i].name).c_str());
+    if (Hud()) {
+        AppendMenuW(m, MF_SEPARATOR, 0, nullptr);
+        for (int i = 0; i < 4; i++)
+            AppendMenuW(m, MF_STRING | (i == g_nexusAccent ? MF_CHECKED : 0), 70 + i, (wstring(L"Accent: ") + kNexusAccentNames[i]).c_str());
+    }
     AppendMenuW(m, MF_SEPARATOR, 0, nullptr);
     wstring pic = BackdropPicture();
     AppendMenuW(m, MF_STRING | (pic.empty() ? 0 : MF_CHECKED), 90, L"Background picture…");
@@ -185,6 +258,11 @@ void ThemeMenu(POINT pt) {
     if (r == 90) BackdropChoosePicture();
     if (r == 91) BackdropClearPicture();
     if (r >= 80 && r < 86) SetWindowOpacity(pcts[r - 80]);
+    if (r >= 70 && r < 74) {
+        g_nexusAccent = r - 70;
+        IniSet(L"Window", L"nexusAccent", std::to_wstring(g_nexusAccent));
+        ThemeSet(g_index);
+    }
 }
 
 HBRUSH ThemeBrush(COLORREF c) {
@@ -218,6 +296,40 @@ void Glyph(HDC dc, const wchar_t* g, const RECT& r, COLORREF c, HFONT f) {
 
 void DrawItemIcon(HDC dc, const RECT& r, const Item& it) {
     const Theme& t = *g_theme;
+    if (t.icons == ICON_HEX) {  // Nexus: tinted hexagon with the extension (or a folder / drive glyph)
+        static const COLORREF pal[] = {RGB(25, 240, 255), RGB(255, 43, 214), RGB(182, 255, 59), RGB(255, 176, 32), RGB(154, 107, 255)};
+        const wchar_t* e = PathFindExtensionW(it.name.c_str());
+        bool dir = it.isDir();
+        COLORREF c = RGB(127, 163, 173);
+        if (it.dtype) c = t.accent;
+        else if (dir) { unsigned hsh = 0; for (wchar_t ch : it.name) hsh = hsh * 31 + ch; c = pal[hsh % 5]; }
+        else if (ExtIn(e, {L".php"})) c = RGB(154, 107, 255);
+        else if (ExtIn(e, {L".js", L".ts", L".jsx", L".tsx", L".mp3", L".wav", L".flac", L".zip", L".7z", L".rar", L".gz", L".tar"})) c = RGB(255, 176, 32);
+        else if (ExtIn(e, {L".json", L".xlsx", L".xls", L".csv", L".exe", L".msi"})) c = RGB(182, 255, 59);
+        else if (ExtIn(e, {L".md", L".psd", L".cpp", L".c", L".h", L".hpp", L".cs", L".py", L".go", L".rs"})) c = RGB(25, 240, 255);
+        else if (ExtIn(e, {L".css", L".scss", L".png", L".jpg", L".jpeg", L".gif", L".webp", L".ico", L".svg", L".bmp"})) c = RGB(255, 43, 214);
+        else if (ExtIn(e, {L".xml", L".pdf", L".html", L".htm", L".mp4", L".mkv", L".mov", L".avi"})) c = RGB(255, 106, 77);
+        else if (ExtIn(e, {L".txt", L".log", L".ini", L".bat", L".cmd"})) c = RGB(191, 233, 240);
+        int w = std::min<int>(S(30), r.right - r.left), h = std::min<int>(S(26), r.bottom - r.top);
+        int x = (r.left + r.right - w) / 2, y = (r.top + r.bottom - h) / 2;
+        POINT pts[6] = {{x + w / 4, y}, {x + w * 3 / 4, y}, {x + w, y + h / 2}, {x + w * 3 / 4, y + h}, {x + w / 4, y + h}, {x, y + h / 2}};
+        HGDIOBJ ob = SelectObject(dc, ThemeBrush(Blend(c, t.pane, 22)));
+        HGDIOBJ op = SelectObject(dc, GetStockObject(NULL_PEN));
+        Polygon(dc, pts, 6);
+        SelectObject(dc, op);
+        SelectObject(dc, ob);
+        RECT tile{x, y, x + w, y + h};
+        if (it.dtype) { Glyph(dc, L"", tile, c, g_iconFontSmall); return; }
+        if (dir) { Glyph(dc, L"", tile, c, g_iconFontSmall); return; }
+        wstring label = *e && lstrlenW(e) <= 5 ? wstring(e + 1) : L"";
+        if (label.empty()) { Glyph(dc, L"", tile, c, g_iconFontSmall); return; }
+        CharUpperBuffW(&label[0], (DWORD)label.size());
+        HFONT f = CreateFontW(-S(label.size() > 3 ? 7 : 8), 0, 0, 0, FW_BOLD, 0, 0, 0, DEFAULT_CHARSET, 0, 0, CLEARTYPE_QUALITY, 0,
+                              HasFont(L"Share Tech Mono") ? L"Share Tech Mono" : L"Consolas");
+        Glyph(dc, label.c_str(), tile, c, f);
+        DeleteObject(f);
+        return;
+    }
     if (t.icons == ICON_SYSTEM) {  // Windows icons (cached per extension, never extracted from the file)
         int sz = GetSystemMetricsForDpi(SM_CXSMICON, g_dpi);
         ImageList_DrawEx(SysImageList(), IconOf(it), dc, (r.left + r.right - sz) / 2, (r.top + r.bottom - sz) / 2, sz, sz,

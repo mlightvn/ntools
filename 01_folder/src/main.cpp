@@ -70,6 +70,7 @@ static void PaintStatusBar(HDC dc, const RECT& rc) {
     const Theme& t = *g_theme;
     RECT bar{rc.left, rc.bottom - StatusH(), rc.right, rc.bottom};
     Surface(dc, g_main, bar, t.toolbar);
+    HudCorners(dc, bar);
     RECT ln = bar; ln.bottom = ln.top + 1;
     Fill(dc, ln, t.border);
     SetBkMode(dc, TRANSPARENT);
@@ -508,6 +509,7 @@ static LRESULT CALLBACK MainProc(HWND h, UINT m, WPARAM w, LPARAM l) {
         HBITMAP bmp = CreateCompatibleBitmap(dc, rc.right, rc.bottom);
         HGDIOBJ ob = SelectObject(mem, bmp);
         Surface(mem, g_main, rc, g_theme->app);  // splitter gaps
+        HudGrid(mem, g_main, rc);
         PaintStatusBar(mem, rc);
         BitBlt(dc, ps.rcPaint.left, ps.rcPaint.top, ps.rcPaint.right - ps.rcPaint.left, ps.rcPaint.bottom - ps.rcPaint.top, mem,
                ps.rcPaint.left, ps.rcPaint.top, SRCCOPY);

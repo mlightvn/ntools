@@ -225,14 +225,26 @@ void PaintUsage(HDC dc, RECT rc) {
     SetTextColor(dc, bar);
     DrawTextW(dc, ps.c_str(), -1, &lab, DT_SINGLELINE | DT_VCENTER | DT_RIGHT);
     RECT track{rc.left + S(16), rc.top + S(36), rc.right - S(16), rc.top + S(42)};
-    RoundFill(dc, track, S(6), t.chip, t.chip);
-    RECT used = track;
-    used.right = track.left + (track.right - track.left) * pct / 100;
-    if (used.right > used.left + S(4)) RoundFill(dc, used, S(6), bar, bar);
+    if (Hud()) {  // Nexus: 20 segments
+        int n = 20, gap = S(3), segW = std::max(1, (int)((track.right - track.left - gap * (n - 1)) / n));
+        int lit = (pct * n + 50) / 100;
+        for (int k = 0; k < n; k++) {
+            RECT s{track.left + k * (segW + gap), track.top - S(2), track.left + k * (segW + gap) + segW, track.bottom + S(2)};
+            Fill(dc, s, k < lit ? bar : t.border);
+        }
+    } else {
+        RoundFill(dc, track, S(6), t.chip, t.chip);
+        RECT used = track;
+        used.right = track.left + (track.right - track.left) * pct / 100;
+        if (used.right > used.left + S(4)) RoundFill(dc, used, S(6), bar, bar);
+    }
     RECT txt{rc.left + S(16), rc.top + S(50), rc.right - S(16), rc.top + S(70)};
     wstring s = FmtSize(g_usage.free) + L" free of " + FmtSize(g_usage.total);
     SetTextColor(dc, t.dim);
     DrawTextW(dc, s.c_str(), -1, &txt, DT_SINGLELINE | DT_VCENTER | DT_END_ELLIPSIS);
+    RECT box = rc;
+    box.bottom -= S(2);
+    HudCorners(dc, box, 2);
 }
 
 // ---------- actions ----------
@@ -524,7 +536,8 @@ void DrawNode(NMTVCUSTOMDRAW* cd) {
     SelectObject(dc, f);
     SetBkMode(dc, TRANSPARENT);
     SetTextColor(dc, c);
-    DrawTextW(dc, text, -1, &txt, DT_SINGLELINE | DT_VCENTER | DT_END_ELLIPSIS | DT_NOPREFIX);
+    wstring label = hdr ? HudLabel(text) : wstring(text);
+    DrawTextW(dc, label.c_str(), -1, &txt, DT_SINGLELINE | DT_VCENTER | DT_END_ELLIPSIS | DT_NOPREFIX);
     if (hdr && TreeView_GetChild(g_tree, h)) {  // section headings: a small chevron at the right
         RECT ch{row.right - S(28), row.top, row.right - S(10), row.bottom};
         Glyph(dc, open ? L"" : L"", ch, t.faint, g_iconFontSmall);

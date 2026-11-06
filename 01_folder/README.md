@@ -32,7 +32,7 @@ build.bat
 ```
 
 - **Toolbar** (always visible): New folder, Cut, Copy, Paste, Rename, Delete (Shift+click deletes permanently), Terminal (opens Windows Terminal, or cmd, in the current folder). They act on the active pane. On the right: the 1 / 2 / 3 pane layout, the theme picker and the profile menu.
-- **Themes**: click the palette button on the toolbar. **Void** (dark navy, the default), **Flux** (dark purple, coloured file tiles with extension badges), **Mono** (black, green accent, monospace everywhere), **Glass** (frosted panels over the blurred desktop wallpaper, lined up with the screen like glass) and **Light** (Windows icons). The theme also colours the title bar, menus and scrollbars. The choice is saved in `nexplorer.ini` (`[Window] theme=`).
+- **Themes**: click the palette button on the toolbar. **Void** (dark navy, the default), **Flux** (dark purple, coloured file tiles with extension badges), **Mono** (black, green accent, monospace everywhere), **Nexus** (futuristic HUD: near-black, neon accent you can switch between cyan, magenta, lime and amber, hexagon file tiles, corner brackets; uses Rajdhani / Orbitron / Share Tech Mono if installed, otherwise Bahnschrift), **Glass** (frosted panels over the blurred desktop wallpaper, lined up with the screen like glass) and **Light** (Windows icons). The theme also colours the title bar, menus and scrollbars. The choice is saved in `nexplorer.ini` (`[Window] theme=`).
   - **Background picture…** (same menu): a picture of your choice behind the whole window, with any theme; panels stay readable on top of it. With Glass, the picture is blurred instead of the wallpaper. **Remove background picture** turns it off.
   - **Window opacity** (same menu): 100% down to 70%, so you can see what is behind the window.
 - **Status bar** (bottom): shortcut reminders; click **Hidden files on/off** to show or hide hidden files (same as Ctrl+H).
@@ -165,6 +165,7 @@ Tested:
 - [x] Search: every word in any order, accent-insensitive, "phrase", wildcards, =exact name; results stream in, parallel scan
 - [x] Sidebar: Quick access pins, Favourites groups + manager (drag & drop), Recent, folder tree, disk usage
 - [x] Background picture (any theme), Glass theme (blurred wallpaper), window opacity 70–100%
+- [x] Nexus theme (HUD look, 4 accent colours)
 
 Not done yet (current limitations):
 

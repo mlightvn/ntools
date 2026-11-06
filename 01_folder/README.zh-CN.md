@@ -32,7 +32,7 @@ build.bat
 ```
 
 - **工具栏**（始终显示）：New folder、Cut、Copy、Paste、Rename、Delete（Shift+点击 = 永久删除）、Terminal（在当前文件夹打开 Windows Terminal 或 cmd）。按钮作用于当前活动窗格。右侧依次是 1 / 2 / 3 窗格布局、主题选择和配置文件菜单。
-- **主题**：点击工具栏上的调色板按钮。**Void**（深海军蓝，默认）、**Flux**（深紫色，彩色文件图块并显示扩展名标签）、**Mono**（黑色，绿色强调，全部使用等宽字体）、**Glass**（磨砂玻璃般的面板，叠在模糊处理的桌面壁纸上，并与屏幕位置对齐）和 **Light**（使用 Windows 图标）。主题也会改变标题栏、菜单和滚动条的颜色。选择保存在 `nexplorer.ini`（`[Window] theme=`）。
+- **主题**：点击工具栏上的调色板按钮。**Void**（深海军蓝，默认）、**Flux**（深紫色，彩色文件图块并显示扩展名标签）、**Mono**（黑色，绿色强调，全部使用等宽字体）、**Nexus**（未来感 HUD：近黑背景，霓虹强调色可在 cyan、magenta、lime、amber 之间切换，六边形文件图块，边角括线；已安装 Rajdhani / Orbitron / Share Tech Mono 时使用这些字体，否则使用 Bahnschrift）、**Glass**（磨砂玻璃般的面板，叠在模糊处理的桌面壁纸上，并与屏幕位置对齐）和 **Light**（使用 Windows 图标）。主题也会改变标题栏、菜单和滚动条的颜色。选择保存在 `nexplorer.ini`（`[Window] theme=`）。
   - **Background picture…**（同一菜单）：为整个窗口选择一张背景图片，任何主题都可用，文字依然清晰。在 Glass 主题下，会模糊处理这张图片来代替桌面壁纸。**Remove background picture** 关闭背景图片。
   - **Window opacity**（同一菜单）：窗口不透明度 100% 到 70%，可以看到窗口后面的内容。
 - **状态栏**（底部）：显示常用快捷键；点击 **Hidden files on/off** 可显示/隐藏隐藏文件（与 Ctrl+H 相同）。
@@ -165,6 +165,7 @@ Ctrl+C 会同时写入多种格式，因此粘贴到不同位置会得到合适�
 - [x] 搜索：所有词顺序不限、忽略重音、"短语"、通配符、=完整名称；结果逐步显示，并行扫描
 - [x] 侧边栏：Quick access 固定、Favourites 分组 + 管理窗口（拖放）、Recent、文件夹树、磁盘空间
 - [x] 自选背景图片（任何主题）、Glass 主题（模糊壁纸）、窗口不透明度 70–100%
+- [x] Nexus 主题（HUD 风格，4 种强调色）
 
 尚未完成（当前限制）：
 

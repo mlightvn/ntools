@@ -79,7 +79,7 @@ void Pane::ApplyTheme() {
     ListView_SetTextColor(list, t.text);
     {  // rows are custom-drawn: an empty image list sets the row height and the icon slot
         HIMAGELIST old = rowIml_;
-        rowIml_ = ImageList_Create(S(22), S(t.rowH), ILC_COLOR32, 1, 0);
+        rowIml_ = ImageList_Create(S(t.icons == ICON_HEX ? 34 : 22), S(t.rowH), ILC_COLOR32, 1, 0);
         ListView_SetImageList(list, rowIml_, LVSIL_SMALL);
         if (old) ImageList_Destroy(old);
     }
@@ -217,8 +217,10 @@ void Pane::PaintTabs(HDC dc) {
     const Theme& t = *g_theme;
     RECT rc; GetClientRect(tabs, &rc);
     Surface(dc, tabs, rc, t.app);
+    HudGrid(dc, tabs, rc);
     RECT line = rc; line.top = line.bottom - 1;
     Fill(dc, line, t.border);
+    HudCorners(dc, rc, 1);
     bool active = ActivePane() == this;
     SetBkMode(dc, TRANSPARENT);
     for (int i = 0; i < (int)tabRects_.size(); i++) {
@@ -388,6 +390,12 @@ void Pane::DrawRow(HDC dc, int i) {
     bool sel = ListView_GetItemState(list, i, LVIS_SELECTED) != 0;
     Surface(dc, list, row, sel ? th.sel : i == hotRow_ || i == dropHi_ ? th.hot : th.pane);
     if (sel) { RECT bar = row; bar.right = bar.left + S(2); Fill(dc, bar, th.selBorder); }
+    if (sel && Hud()) {  // Nexus: a glowing outline around the selection
+        Frame(dc, row, Mix(th.accent, th.pane, 60));
+        RECT in = row;
+        InflateRect(&in, -1, -1);
+        Frame(dc, in, Mix(th.accent, th.pane, 22));
+    }
     if (i == dropHi_) Frame(dc, row, th.accent);
     if (th.rowLine != th.pane) { RECT ln = row; ln.top = ln.bottom - 1; Fill(dc, ln, th.rowLine); }
     if (GetFocus() == list && ListView_GetItemState(list, i, LVIS_FOCUSED) && !sel) Frame(dc, row, th.border);
@@ -411,8 +419,8 @@ void Pane::DrawRow(HDC dc, int i) {
         cr.right -= S(8);
         bool mono = col == C_MTIME || col == C_CTIME || col == C_ATIME || col == C_SIZE || col == C_FREE || col == C_TOTAL ||
                     col == C_DELETED || col == C_ATTR || col == C_EXT;
-        SelectObject(dc, mono ? g_fontMono : g_font);
-        SetTextColor(dc, dim ? th.faint : col == C_NAME || sel ? th.text : th.dim);
+        SelectObject(dc, mono ? g_fontMono : col == C_NAME && Hud() ? g_fontBold : g_font);
+        SetTextColor(dc, dim ? th.faint : col == C_NAME && sel && Hud() ? th.accent : col == C_NAME || sel ? th.text : th.dim);
         wstring s = CellText(it, col);
         if (col == C_SIZE && s.empty() && !it.dtype) s = L"—";  // folders: an em dash, like the design
         if (col == C_FOLDER && s.empty()) s = L".\\";               // directly in the searched folder
@@ -437,6 +445,7 @@ void Pane::PaintHeader(HWND h, HDC dc) {
         hi.pszText = buf;
         hi.cchTextMax = 128;
         Header_GetItem(h, k, &hi);
+        if (Hud()) CharUpperW(buf);
         r.left += k == 0 ? S(16) : S(8);
         r.right -= S(8);
         bool right = hi.fmt & HDF_RIGHT;
@@ -1306,8 +1315,9 @@ LRESULT Pane::Proc(UINT m, WPARAM w, LPARAM l) {
         SetBkMode(dc, TRANSPARENT);
         RECT title = rc; title.left = S(16); title.top = S(kTabH) + S(kNavH); title.bottom = title.top + S(kTitleH); title.right -= S(48);
         wstring name = DisplayName(Path());
+        if (Hud() && !name.empty()) CharUpperBuffW(&name[0], (DWORD)name.size());
         SelectObject(dc, g_fontTitle);
-        SetTextColor(dc, th.text);
+        SetTextColor(dc, Hud() ? RGB(255, 255, 255) : th.text);
         RECT tr = title;
         DrawTextW(dc, name.c_str(), -1, &tr, DT_SINGLELINE | DT_VCENTER | DT_END_ELLIPSIS | DT_NOPREFIX | DT_CALCRECT);
         tr.bottom = title.bottom; tr.top = title.top;
@@ -1320,10 +1330,21 @@ LRESULT Pane::Proc(UINT m, WPARAM w, LPARAM l) {
             wstring root = SearchRoot(Path());
             items = std::to_wstring(T()->items.size()) + (T()->loading ? L" found so far" : T()->items.size() == 1 ? L" result" : L" results") + L" in " + (root.empty() ? L"all drives" : DisplayName(root));
         }
-        DrawTextW(dc, items.c_str(), -1, &cnt, DT_SINGLELINE | DT_VCENTER);
+        if (Hud()) {  // Nexus: the count in an accent-bordered chip
+            RECT m = cnt;
+            DrawTextW(dc, items.c_str(), -1, &m, DT_SINGLELINE | DT_CALCRECT);
+            int hh = m.bottom - m.top + S(4), cy = (title.top + title.bottom) / 2;
+            RECT chip{cnt.left, cy - hh / 2, cnt.left + (m.right - m.left) + S(16), cy + hh / 2};
+            Frame(dc, chip, Mix(th.accent, th.pane, 50));
+            SetTextColor(dc, th.accent);
+            DrawTextW(dc, items.c_str(), -1, &chip, DT_SINGLELINE | DT_VCENTER | DT_CENTER);
+        } else {
+            DrawTextW(dc, items.c_str(), -1, &cnt, DT_SINGLELINE | DT_VCENTER);
+        }
         RECT st = rc; st.top = st.bottom - S(kStatusH);
         ln = st; ln.bottom = ln.top + 1;
         Fill(dc, ln, th.border);
+        HudCorners(dc, rc, 2);
         st.left += S(16); st.right -= S(16);
         SetTextColor(dc, th.faint);
         DrawTextW(dc, statusL_.c_str(), -1, &st, DT_SINGLELINE | DT_VCENTER | DT_END_ELLIPSIS | DT_NOPREFIX);

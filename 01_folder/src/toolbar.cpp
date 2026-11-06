@@ -137,6 +137,7 @@ void Paint(HDC dc) {
     RECT ln = rc; ln.top = ln.bottom - 1;
     Fill(dc, ln, t.border);
     for (int x : g_seps) { RECT s{x, rc.top + S(16), x + 1, rc.bottom - S(16)}; Fill(dc, s, t.border); }
+    HudCorners(dc, rc);
     SetBkMode(dc, TRANSPARENT);
     if (g_searchR.right > g_searchR.left) {
         bool focus = GetFocus() == g_edit;
@@ -158,13 +159,28 @@ void Paint(HDC dc) {
         RECT r = it.r;
         if (it.id == T_NEWFOLDER) {
             COLORREF bg = down ? Darker(t.accent) : t.accent;
-            RoundFill(dc, r, S(6), bg, bg);
+            if (Hud()) {  // Nexus: cut corners and a soft glow
+                int c = S(10);
+                RECT gl = r;
+                InflateRect(&gl, S(3), S(3));
+                RoundFill(dc, gl, S(4), Mix(t.accent, t.toolbar, 22), Mix(t.accent, t.toolbar, 22));
+                POINT pts[6] = {{r.left, r.top}, {r.right - c, r.top}, {r.right, r.top + c}, {r.right, r.bottom}, {r.left + c, r.bottom}, {r.left, r.bottom - c}};
+                HGDIOBJ ob = SelectObject(dc, ThemeBrush(bg));
+                HGDIOBJ op = SelectObject(dc, GetStockObject(NULL_PEN));
+                Polygon(dc, pts, 6);
+                SelectObject(dc, op);
+                SelectObject(dc, ob);
+            } else {
+                RoundFill(dc, r, S(6), bg, bg);
+            }
             RECT g = r; g.left += S(10); g.right = g.left + S(20);
             Glyph(dc, it.glyph, g, t.accentText);
             RECT tx = r; tx.left = g.right + S(6);
-            SelectObject(dc, g_fontBold);
+            SelectObject(dc, Hud() ? g_fontSmall : g_fontBold);
             SetTextColor(dc, t.accentText);
-            DrawTextW(dc, it.label.c_str(), -1, &tx, DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX);
+            wstring label = it.label;
+            if (Hud()) CharUpperBuffW(&label[0], (DWORD)label.size());
+            DrawTextW(dc, label.c_str(), -1, &tx, DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX);
             continue;
         }
         bool on = (it.id == T_PANE1 && g_paneCount == 1) || (it.id == T_PANE2 && g_paneCount == 2) || (it.id == T_PANE3 && g_paneCount == 3);
