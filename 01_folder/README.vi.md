@@ -41,9 +41,12 @@ build.bat
   - Click vùng trống (hoặc Ctrl+L) để gõ path; có gợi ý khi gõ.
   - Gõ được `%USERPROFILE%`, `/`, `\\server\share`, path tương đối. Gõ path tới một file thì mở folder chứa nó và chọn sẵn file.
 - **Sidebar**:
-  - Favourites là folder do bạn ghim. Ghim bằng ☆, Ctrl+D, menu chuột phải, hoặc kéo folder thả vào nhóm Favourites.
-  - Rê chuột lên một mục để hiện nút ▲ ▼ đổi thứ tự. Chuột phải lên một mục để đổi tên, xóa, Move up / Move down.
-  - Quick access gồm các folder hệ thống, **Recycle Bin**, và 8 folder bạn dùng nhiều nhất gần đây.
+  - **QUICK ACCESS**: folder bạn tự ghim. Mặc định có Desktop, Downloads, Documents, Pictures, Videos, Music và Recycle Bin; bỏ ghim cái không cần. Ghim folder bằng chuột phải (trong pane hoặc sidebar) → **Pin to Quick access**, hoặc kéo folder thả lên tiêu đề QUICK ACCESS. Kéo để đổi thứ tự, F2 đổi tên, Del bỏ ghim.
+  - **FAVOURITES**: bookmark có nhóm, giống trình duyệt. Thêm bằng ☆ ở hàng tiêu đề, Ctrl+D, menu chuột phải, hoặc kéo folder thả lên FAVOURITES hay lên một nhóm. Kéo thả để đổi thứ tự, đưa vào hoặc lấy ra khỏi nhóm; chuột phải có Rename, Move to group, New group, Open all in new tabs, Delete.
+  - **Manage favourites** (chuột phải FAVOURITES, hoặc nút theme → Manage favourites…): cửa sổ hiện toàn bộ cây: New group, Add current folder, Rename, Edit path, Delete, ▲ ▼ và kéo thả.
+  - **RECENT**: 8 folder bạn mở nhiều nhất (không tính folder đã ghim hoặc đã có trong Favourites).
+  - **FOLDERS**: mọi ổ đĩa, folder con được đọc khi bấm mở. Folder đang hiện ở pane active được tô sáng.
+  - Dưới cùng: dung lượng trống của ổ đang mở ở pane active.
 - **Recycle Bin** (sidebar, hoặc gõ `Recycle Bin` vào address bar): gộp rác của mọi ổ trong máy, các cột Tên / Vị trí gốc / Ngày xóa / Dung lượng / Loại.
   - Del hoặc Shift+Del: xóa vĩnh viễn ngay (có hỏi xác nhận).
   - Chuột phải: Restore (trả về đúng chỗ cũ; trùng tên thì giữ cả hai), Delete permanently, Empty Recycle Bin.
@@ -74,7 +77,7 @@ build.bat
 | Ctrl+L, Alt+D, F4 | Sửa address bar |
 | Ctrl+F, Ctrl+K | Tìm trong folder hiện tại và các folder con (Esc để quay lại) |
 | Ctrl+S / Ctrl+P | Lưu layout vào profile hiện tại / Mở menu profile |
-| Ctrl+D | Ghim / bỏ ghim folder hiện tại |
+| Ctrl+D | Thêm / bỏ folder hiện tại khỏi Favourites |
 | Ctrl+B | Ẩn/hiện sidebar |
 | Ctrl+H | Hiện/ẩn file ẩn |
 | F5, Ctrl+A, Alt+Enter | Refresh, Chọn tất cả, Properties |
@@ -158,11 +161,11 @@ Ctrl+C ghi cùng lúc nhiều định dạng, nên mỗi nơi dán sẽ ra kết
 - [x] Shift + lăn chuột cuộn ngang; lăn thường vẫn cuộn dọc; lăn nghiêng / touchpad cuộn ngang
 - [x] Theme Void / Flux / Mono / Light, đổi theme khi đang chạy; toolbar chung (New folder, Cut, Copy, Paste, Rename, Delete, Terminal); status bar
 - [x] Tìm kiếm: mọi từ theo thứ tự bất kỳ, không phân biệt dấu, "cụm từ", ký tự đại diện, =tên chính xác; kết quả hiện dần, quét song song
+- [x] Sidebar: ghim Quick access, Favourites có nhóm + cửa sổ quản lý (kéo thả), Recent, cây thư mục, dung lượng ổ
 
 Chưa làm (giới hạn hiện tại):
 
 - [ ] Kéo file từ app ra app khác (chiều ngược lại thì được)
-- [ ] Kéo thả để sắp xếp Favourites (hiện dùng nút ▲ ▼ thay thế)
 - [ ] Hyperlink trong Excel với tên file có `#` (Excel coi `#` là "vị trí trong file"; Word không bị)
 - [ ] Properties cho nhiều item cùng lúc (hiện chỉ item đầu tiên)
 - [ ] Test với ổ mạng bị ngắt và khi đổi DPI giữa hai màn hình

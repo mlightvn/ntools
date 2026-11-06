@@ -1,5 +1,6 @@
 #include "theme.h"
 #include "app.h"
+#include "favs.h"
 #include <dwmapi.h>
 #include <map>
 
@@ -157,9 +158,12 @@ void ThemeMenu(POINT pt) {
     HMENU m = CreatePopupMenu();
     for (int i = 0; i < ThemeCount(); i++)
         AppendMenuW(m, MF_STRING | (i == g_index ? MF_CHECKED : 0), 100 + i, (wstring(L"Theme: ") + kThemes[i].name).c_str());
+    AppendMenuW(m, MF_SEPARATOR, 0, nullptr);
+    AppendMenuW(m, MF_STRING, 99, L"Manage favourites…");
     int r = TrackPopupMenu(m, TPM_RETURNCMD | TPM_RIGHTALIGN, pt.x, pt.y, 0, g_main, nullptr);
     DestroyMenu(m);
     if (r >= 100) ThemeSet(r - 100);
+    if (r == 99) FavManager();
 }
 
 HBRUSH ThemeBrush(COLORREF c) {

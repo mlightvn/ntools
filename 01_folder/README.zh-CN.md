@@ -41,9 +41,12 @@ build.bat
   - 点击空白处（或按 Ctrl+L）输入路径，输入时会给出建议。
   - 支持 `%USERPROFILE%`、`/`、`\\server\share` 和相对路径。输入文件路径时，会打开其所在文件夹并选中该文件。
 - **侧边栏**：
-  - Favourites（收藏）是你固定的文件夹：通过 ☆、Ctrl+D、右键菜单，或把文件夹拖到 Favourites 组即可固定。
-  - 鼠标悬停在某项上会出现 ▲ ▼ 按钮用于调整顺序。右键某项可重命名、移除、Move up / Move down。
-  - Quick access 包含系统文件夹、**Recycle Bin（回收站）**，以及最近最常用的 8 个文件夹。
+  - **QUICK ACCESS**：你自己固定的文件夹。默认包含 Desktop、Downloads、Documents、Pictures、Videos、Music 和回收站，不需要的可以取消固定。右键文件夹（窗格或侧边栏中）→ **Pin to Quick access**，或把文件夹拖到 QUICK ACCESS 标题上即可固定。拖动可调整顺序，F2 重命名，Del 取消固定。
+  - **FAVOURITES**：可分组的书签，类似浏览器。点击标题行的 ☆、Ctrl+D、右键菜单，或把文件夹拖到 FAVOURITES 或某个分组上即可添加。拖动可调整顺序、移入或移出分组；右键有 Rename、Move to group、New group、Open all in new tabs、Delete。
+  - **Manage favourites**（右键 FAVOURITES，或主题按钮 → Manage favourites…）：显示整棵书签树的窗口，可 New group、Add current folder、Rename、Edit path、Delete、▲ ▼ 和拖放。
+  - **RECENT**：最常打开的 8 个文件夹（已固定和已收藏的除外）。
+  - **FOLDERS**：所有磁盘，展开时才读取子文件夹。活动窗格当前显示的文件夹会高亮。
+  - 最下方：活动窗格所在磁盘的可用空间。
 - **回收站**（侧边栏，或在地址栏输入 `Recycle Bin`）：汇总所有磁盘中已删除的项目，列为 名称 / 原位置 / 删除日期 / 大小 / 类型。
   - Del 或 Shift+Del：立即永久删除（会要求确认）。
   - 右键：Restore（还原到原位置；若同名文件已存在则两者都保留）、Delete permanently、Empty Recycle Bin。
@@ -74,7 +77,7 @@ build.bat
 | Ctrl+L、Alt+D、F4 | 编辑地址栏 |
 | Ctrl+F、Ctrl+K | 在当前文件夹及其子文件夹中搜索（Esc 返回） |
 | Ctrl+S / Ctrl+P | 把布局保存到当前配置文件 / 打开配置文件菜单 |
-| Ctrl+D | 固定 / 取消固定当前文件夹 |
+| Ctrl+D | 将当前文件夹加入 / 移出 Favourites |
 | Ctrl+B | 显示 / 隐藏侧边栏 |
 | Ctrl+H | 显示 / 隐藏隐藏文件 |
 | F5、Ctrl+A、Alt+Enter | 刷新、全选、属性 |
@@ -158,11 +161,11 @@ Ctrl+C 会同时写入多种格式，因此粘贴到不同位置会得到合适�
 - [x] Shift + 滚轮水平滚动；普通滚轮仍为垂直滚动；倾斜滚轮 / 触控板水平滚动
 - [x] 主题 Void / Flux / Mono / Light，运行时切换；全局工具栏（New folder、Cut、Copy、Paste、Rename、Delete、Terminal）；状态栏
 - [x] 搜索：所有词顺序不限、忽略重音、"短语"、通配符、=完整名称；结果逐步显示，并行扫描
+- [x] 侧边栏：Quick access 固定、Favourites 分组 + 管理窗口（拖放）、Recent、文件夹树、磁盘空间
 
 尚未完成（当前限制）：
 
 - [ ] 从本程序把文件拖到其他程序（反方向可以）
-- [ ] 通过拖放调整 Favourites 顺序（目前用 ▲ ▼ 按钮代替）
 - [ ] 文件名含 `#` 时的 Excel 超链接（Excel 把 `#` 当作"文件内的位置"；Word 没问题）
 - [ ] 同时查看多个项目的属性（目前只显示第一个）
 - [ ] 测试网络驱动器断开以及在不同 DPI 的显示器之间切换

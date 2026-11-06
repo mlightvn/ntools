@@ -120,6 +120,7 @@ void SetActive(Pane* p) {
             g_panes[old]->PaintBorder();
             p->PaintBorder();
             ToolbarSyncSearch();
+            SidebarSetCurrent();
         }
 }
 
@@ -455,7 +456,7 @@ static bool GlobalKey(MSG& msg) {
         case 'W': p->CloseTab(p->CurTab()); p->FocusList(); return true;
         case VK_TAB: p->SwitchTab((p->CurTab() + (shift ? p->TabCount() - 1 : 1)) % p->TabCount()); p->FocusList(); return true;
         case '1': case '2': case '3': SetPaneCount(int(k - '0')); return true;
-        case 'B': g_sideVisible = !g_sideVisible; Relayout(); if (!g_sideVisible && GetFocus() == SidebarHwnd()) p->FocusList(); return true;
+        case 'B': g_sideVisible = !g_sideVisible; Relayout(); if (!g_sideVisible && SidebarHasFocus()) p->FocusList(); return true;
         case 'L': p->addr.BeginEdit(); return true;
         case 'H': ToggleHidden(); return true;
         case 'S': if (!shift) { ProfileSave(); return true; } break;
@@ -466,7 +467,7 @@ static bool GlobalKey(MSG& msg) {
     if (alt && !ctrl && k == 'D') { p->addr.BeginEdit(); return true; }
     if (k == VK_F4 && !alt) { p->addr.BeginEdit(); return true; }
     if (IsEditFocus()) return false;
-    if ((k == VK_TAB && !ctrl && !alt) || k == VK_F6) { FocusNextPane(GetFocus() == SidebarHwnd()); return true; }
+    if ((k == VK_TAB && !ctrl && !alt) || k == VK_F6) { FocusNextPane(SidebarHasFocus()); return true; }
     for (int i = 0; i < g_paneCount; i++)
         if (msg.hwnd == g_panes[i]->list) return g_panes[i]->HandleKey(msg);
     return false;
@@ -555,12 +556,6 @@ static LRESULT CALLBACK MainProc(HWND h, UINT m, WPARAM w, LPARAM l) {
         if (w == 77) DragUpdate();
         if (w == 78) ProfileTick();
         return 0;
-    case WM_NOTIFY: {
-        NMHDR* nm = (NMHDR*)l;
-        LRESULT res = 0;
-        if (nm->hwndFrom == SidebarHwnd()) SidebarOnNotify(nm, res);
-        return res;
-    }
     case WM_DROPFILES: DropExternal((HDROP)w); return 0;
     case WM_APP_EJECTED: OnEjected(l); return 0;
     case WM_APP_FOCUSLIST: ActivePane()->FocusList(); return 0;

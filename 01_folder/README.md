@@ -41,9 +41,12 @@ build.bat
   - Click the empty area (or press Ctrl+L) to type a path, with suggestions as you type.
   - Accepts `%USERPROFILE%`, `/`, `\\server\share` and relative paths. Typing the path of a file opens its folder with the file selected.
 - **Sidebar**:
-  - Favourites are folders you pin: with ☆, Ctrl+D, the context menu, or by dropping a folder onto the Favourites group.
-  - Hover an item to show ▲ ▼ buttons for reordering. Right-click an item to rename, remove, or Move up / Move down.
-  - Quick access lists the system folders, the **Recycle Bin**, and the 8 folders you used most recently.
+  - **QUICK ACCESS**: folders you pin yourself. It starts with Desktop, Downloads, Documents, Pictures, Videos, Music and the Recycle Bin; unpin what you don't need. Pin a folder by right-clicking it (in a pane or the sidebar) → **Pin to Quick access**, or by dropping it onto the QUICK ACCESS heading. Drag to reorder, F2 to rename, Del to unpin.
+  - **FAVOURITES**: bookmarks in groups, like a browser. Add with the ☆ in the title row, Ctrl+D, the context menu, or by dropping a folder onto FAVOURITES or onto a group. Drag items to reorder them or to move them into or out of a group; right-click for Rename, Move to group, New group, Open all in new tabs, Delete.
+  - **Manage favourites** (right-click FAVOURITES, or the theme button → Manage favourites…): a window with the whole tree: New group, Add current folder, Rename, Edit path, Delete, ▲ ▼, and drag & drop.
+  - **RECENT**: the 8 folders you open most (pinned and favourite folders are left out).
+  - **FOLDERS**: every drive, with its subfolders loaded when you expand them. The folder shown in the active pane is highlighted.
+  - At the bottom: free space of the active pane's drive.
 - **Recycle Bin** (sidebar, or type `Recycle Bin` in the address bar): deleted items from every drive, with Name / Original location / Date deleted / Size / Type columns.
   - Del or Shift+Del: delete permanently (asks for confirmation).
   - Right-click: Restore (back to the original location; if the name is taken, both are kept), Delete permanently, Empty Recycle Bin.
@@ -74,7 +77,7 @@ build.bat
 | Ctrl+L, Alt+D, F4 | Edit the address bar |
 | Ctrl+F, Ctrl+K | Search the current folder and its subfolders (Esc goes back) |
 | Ctrl+S / Ctrl+P | Save the layout to the current profile / Open the profile menu |
-| Ctrl+D | Pin / unpin the current folder |
+| Ctrl+D | Add / remove the current folder in Favourites |
 | Ctrl+B | Show / hide the sidebar |
 | Ctrl+H | Show / hide hidden files |
 | F5, Ctrl+A, Alt+Enter | Refresh, Select all, Properties |
@@ -158,11 +161,11 @@ Tested:
 - [x] Shift + wheel scrolls horizontally; the plain wheel still scrolls vertically; tilt wheel / touchpad scroll horizontally
 - [x] Themes Void / Flux / Mono / Light, switching at runtime; global toolbar (New folder, Cut, Copy, Paste, Rename, Delete, Terminal); status bar
 - [x] Search: every word in any order, accent-insensitive, "phrase", wildcards, =exact name; results stream in, parallel scan
+- [x] Sidebar: Quick access pins, Favourites groups + manager (drag & drop), Recent, folder tree, disk usage
 
 Not done yet (current limitations):
 
 - [ ] Dragging files from the app into other apps (the other direction works)
-- [ ] Reordering Favourites by drag and drop (the ▲ ▼ buttons are used instead)
 - [ ] Excel hyperlinks for file names containing `#` (Excel treats `#` as "a location inside the file"; Word is fine)
 - [ ] Properties for several items at once (currently only the first item)
 - [ ] Testing with disconnected network drives and DPI changes between monitors

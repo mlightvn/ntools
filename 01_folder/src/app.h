@@ -81,5 +81,9 @@ void TrackVisit(const wstring& path);
 vector<wstring> RecentPaths(size_t n);
 bool SidebarDropTarget(POINT screen, wstring& dir, bool& pin);
 void SidebarClearDropHi();
-void SidebarOnNotify(NMHDR* nm, LRESULT& res);
+bool SidebarHasFocus();
+void SidebarSetCurrent();             // highlight the active pane's folder, update the disk usage
+void SidebarFavsChanged();            // Quick access / Favourites changed: rebuild those sections
+wstring SidebarPinText();             // drag tooltip when dropping onto QUICK ACCESS / FAVOURITES
+void SidebarPinDropped(const vector<wstring>& paths);
 void SidebarApplyTheme();

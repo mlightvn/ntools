@@ -4,6 +4,7 @@
 #include "clip.h"
 #include "fileops.h"
 #include "theme.h"
+#include "favs.h"
 
 enum { ID_BACK = 201, ID_FWD, ID_UP, ID_REFRESH, ID_STAR };
 static const wchar_t* kGlyph[] = {L"", L"", L"", L"", L""};
@@ -163,7 +164,7 @@ void Pane::SwitchTab(int i) {
     else { ShowItems(true); if (!t->loading && !IsSearch(t->path)) Refresh(); }  // finished searches are kept, not re-run
     Layout();
     InvalidateRect(hwnd, nullptr, FALSE);
-    if (this == ActivePane()) ToolbarSyncSearch();
+    if (this == ActivePane()) { ToolbarSyncSearch(); SidebarSetCurrent(); }
 }
 
 void Pane::UpdateTabs() {
@@ -605,7 +606,7 @@ void Pane::Navigate(const wstring& p, bool hist, const wstring& select) {
     if (IsSearch(path)) watcher_.Stop();
     else watcher_.Watch(hwnd, path);
     if (IsFsPath(path)) TrackVisit(path);
-    if (this == ActivePane()) ToolbarSyncSearch();
+    if (this == ActivePane()) { ToolbarSyncSearch(); SidebarSetCurrent(); }
 }
 
 void Pane::Refresh() {
@@ -977,7 +978,7 @@ void Pane::ContextMenu(POINT pt, bool keyboard) {
     bool oneDir = sel.size() == 1 && hit >= 0 && t->items[hit].isDir();
     bool canPaste = IsClipboardFormatAvailable(CF_HDROP);
     enum { M_OPEN = 1, M_OPENTAB, M_CUT, M_COPY, M_LINK, M_PATH, M_PASTE, M_RENAME, M_DELETE, M_NEWDIR, M_NEWFILE,
-           M_FAV, M_TERM, M_PROPS, M_REFRESH, M_HIDDEN, M_ZIP, M_7Z, M_7ZPW, M_EJECT, M_XHERE, M_XFOLDER, M_LOCATE };
+           M_FAV, M_TERM, M_PROPS, M_REFRESH, M_HIDDEN, M_ZIP, M_7Z, M_7ZPW, M_EJECT, M_XHERE, M_XFOLDER, M_LOCATE, M_QPIN };
     bool archives = !sel.empty() && !drives;
     for (auto& s : sel) if (!IsArchive(s)) { archives = false; break; }
     bool ejectable = drives && oneDir && IsExternalDrive(sel[0]);
@@ -1014,6 +1015,7 @@ void Pane::ContextMenu(POINT pt, bool keyboard) {
         }
         AppendMenuW(m, MF_SEPARATOR, 0, nullptr);
         if (oneDir) AppendMenuW(m, MF_STRING, M_FAV, IsFavourite(sel[0]) ? L"Remove from Favourites" : L"Add to Favourites");
+        if (oneDir) AppendMenuW(m, MF_STRING, M_QPIN, IsPinned(sel[0]) ? L"Unpin from Quick access" : L"Pin to Quick access");
         AppendMenuW(m, MF_STRING, M_TERM, L"Open terminal here");
         AppendMenuW(m, MF_STRING, M_PROPS, L"Properties\tAlt+Enter");
     } else {
@@ -1028,6 +1030,7 @@ void Pane::ContextMenu(POINT pt, bool keyboard) {
         if (!drives && !search) {
             AppendMenuW(m, MF_STRING, M_PATH, L"Copy path");
             AppendMenuW(m, MF_STRING, M_FAV, IsFavourite(t->path) ? L"Remove from Favourites\tCtrl+D" : L"Add to Favourites\tCtrl+D");
+            AppendMenuW(m, MF_STRING, M_QPIN, IsPinned(t->path) ? L"Unpin from Quick access" : L"Pin to Quick access");
             AppendMenuW(m, MF_STRING, M_TERM, L"Open terminal here");
         }
         AppendMenuW(m, MF_STRING | (g_showHidden ? MF_CHECKED : 0), M_HIDDEN, L"Show hidden files\tCtrl+H");
@@ -1049,6 +1052,7 @@ void Pane::ContextMenu(POINT pt, bool keyboard) {
     case M_NEWDIR: NewFolder(false); break;
     case M_NEWFILE: NewFolder(true); break;
     case M_FAV: ToggleFavourite(target); UpdateStar(); break;
+    case M_QPIN: TogglePin(target); break;
     case M_TERM: OpenTerminal(oneDir ? sel[0] : search && !sel.empty() ? Parent(sel[0]) : t->path); break;
     case M_LOCATE: Navigate(Parent(sel[0]), true, FileName(sel[0])); break;
     case M_PROPS: ShowProperties(sel.empty() ? t->path : sel[0]); break;
