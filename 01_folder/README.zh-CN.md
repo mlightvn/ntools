@@ -32,7 +32,9 @@ build.bat
 ```
 
 - **工具栏**（始终显示）：New folder、Cut、Copy、Paste、Rename、Delete（Shift+点击 = 永久删除）、Terminal（在当前文件夹打开 Windows Terminal 或 cmd）。按钮作用于当前活动窗格。右侧依次是 1 / 2 / 3 窗格布局、主题选择和配置文件菜单。
-- **主题**：点击工具栏上的调色板按钮。**Void**（深海军蓝，默认）、**Flux**（深紫色，彩色文件图块并显示扩展名标签）、**Mono**（黑色，绿色强调，全部使用等宽字体）和 **Light**（使用 Windows 图标）。主题也会改变标题栏、菜单和滚动条的颜色。选择保存在 `nexplorer.ini`（`[Window] theme=`）。
+- **主题**：点击工具栏上的调色板按钮。**Void**（深海军蓝，默认）、**Flux**（深紫色，彩色文件图块并显示扩展名标签）、**Mono**（黑色，绿色强调，全部使用等宽字体）、**Glass**（磨砂玻璃般的面板，叠在模糊处理的桌面壁纸上，并与屏幕位置对齐）和 **Light**（使用 Windows 图标）。主题也会改变标题栏、菜单和滚动条的颜色。选择保存在 `nexplorer.ini`（`[Window] theme=`）。
+  - **Background picture…**（同一菜单）：为整个窗口选择一张背景图片，任何主题都可用，文字依然清晰。在 Glass 主题下，会模糊处理这张图片来代替桌面壁纸。**Remove background picture** 关闭背景图片。
+  - **Window opacity**（同一菜单）：窗口不透明度 100% 到 70%，可以看到窗口后面的内容。
 - **状态栏**（底部）：显示常用快捷键；点击 **Hidden files on/off** 可显示/隐藏隐藏文件（与 Ctrl+H 相同）。
 - 1、2 或 3 个窗格（pane）：点击工具栏上的布局按钮，或按 Ctrl+1 / 2 / 3。拖动窗格之间的分隔条可调整宽度。每个窗格有自己的标签页，新标签页打开 **This PC**。活动窗格显示 `ACTIVE`，当前标签上有一条强调色线。
 - **标签页**：点击标签上的 `×` 关闭（或 Ctrl+W、鼠标中键）。右键标签页可选 Close tab、Close other tabs、Close tabs to the right、Duplicate tab、New tab。双击标签栏空白处可新建标签页。
@@ -162,6 +164,7 @@ Ctrl+C 会同时写入多种格式，因此粘贴到不同位置会得到合适�
 - [x] 主题 Void / Flux / Mono / Light，运行时切换；全局工具栏（New folder、Cut、Copy、Paste、Rename、Delete、Terminal）；状态栏
 - [x] 搜索：所有词顺序不限、忽略重音、"短语"、通配符、=完整名称；结果逐步显示，并行扫描
 - [x] 侧边栏：Quick access 固定、Favourites 分组 + 管理窗口（拖放）、Recent、文件夹树、磁盘空间
+- [x] 自选背景图片（任何主题）、Glass 主题（模糊壁纸）、窗口不透明度 70–100%
 
 尚未完成（当前限制）：
 

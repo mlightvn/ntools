@@ -17,6 +17,7 @@ struct Theme {
     IconStyle icons;
     bool monoUI;                // Mono: monospace everywhere
     int rowH;                   // list row height at 96 dpi (0 = native)
+    int glass = 0;              // > 0: surfaces are this opaque (0-255) over the blurred wallpaper / picture
 };
 
 extern const Theme* g_theme;
@@ -38,3 +39,15 @@ void Frame(HDC dc, const RECT& r, COLORREF c);
 void RoundFill(HDC dc, const RECT& r, int radius, COLORREF fill, COLORREF border);
 void Glyph(HDC dc, const wchar_t* g, const RECT& r, COLORREF c, HFONT f = nullptr);
 void DrawItemIcon(HDC dc, const RECT& r, const Item& it);   // line / coloured icon by file type
+
+// Backgrounds (backdrop.cpp): a picture behind the UI, the Glass theme, window opacity
+void Surface(HDC dc, HWND hwnd, const RECT& r, COLORREF c);  // fill r (client coords of hwnd); the picture shows through
+bool BackdropActive();
+bool BackdropFollowsScreen();          // Glass: the backdrop is aligned to the monitor, repaint after moving
+void BackdropReset();                  // theme / picture changed
+wstring BackdropPicture();
+void BackdropChoosePicture();          // file dialog
+void BackdropClearPicture();
+int WindowOpacity();                   // percent
+void SetWindowOpacity(int pct);
+void ApplyWindowOpacity();

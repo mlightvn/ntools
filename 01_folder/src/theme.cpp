@@ -28,6 +28,13 @@ const Theme kThemes[] = {
      RGB(19, 46, 32), RGB(74, 222, 128), RGB(19, 23, 27), RGB(11, 13, 15),
      RGB(16, 19, 22), RGB(26, 30, 34),
      RGB(110, 200, 140), RGB(125, 133, 144), ICON_LINE, true, 24},
+    // Glass: frosted panels over the blurred desktop wallpaper (or the chosen picture)
+    {L"glass", L"Glass", true, RGB(14, 16, 22), RGB(34, 38, 48), RGB(26, 29, 38), RGB(22, 25, 33), RGB(92, 100, 118),
+     RGB(244, 246, 250), RGB(200, 206, 218), RGB(150, 158, 174),
+     RGB(10, 132, 255), RGB(255, 255, 255),
+     RGB(28, 92, 170), RGB(64, 160, 255), RGB(70, 78, 96), RGB(22, 25, 33),
+     RGB(30, 34, 44), RGB(58, 64, 80),
+     RGB(130, 196, 255), RGB(206, 212, 224), ICON_LINE, false, 32, 150},
     {L"light", L"Light", false, RGB(255, 255, 255), RGB(246, 247, 249), RGB(250, 250, 251), RGB(255, 255, 255), RGB(222, 224, 228),
      RGB(28, 28, 30), RGB(96, 100, 110), RGB(150, 154, 162),
      RGB(0, 103, 192), RGB(255, 255, 255),
@@ -151,6 +158,7 @@ void ThemeSet(int i) {
     g_theme = &kThemes[i];
     IniSet(L"Window", L"theme", g_theme->id);
     ApplyAppMode();
+    BackdropReset();
     ThemeChanged();  // app.h: fonts, controls, layout, repaint
 }
 
@@ -159,11 +167,24 @@ void ThemeMenu(POINT pt) {
     for (int i = 0; i < ThemeCount(); i++)
         AppendMenuW(m, MF_STRING | (i == g_index ? MF_CHECKED : 0), 100 + i, (wstring(L"Theme: ") + kThemes[i].name).c_str());
     AppendMenuW(m, MF_SEPARATOR, 0, nullptr);
+    wstring pic = BackdropPicture();
+    AppendMenuW(m, MF_STRING | (pic.empty() ? 0 : MF_CHECKED), 90, L"Background picture…");
+    AppendMenuW(m, MF_STRING | (pic.empty() ? MF_GRAYED : 0), 91, L"Remove background picture");
+    HMENU op = CreatePopupMenu();
+    static const int pcts[] = {100, 95, 90, 85, 80, 70};
+    for (int i = 0; i < 6; i++)
+        AppendMenuW(op, MF_STRING | (WindowOpacity() == pcts[i] ? MF_CHECKED : 0), 80 + i,
+                    (std::to_wstring(pcts[i]) + (pcts[i] == 100 ? L"%  (opaque)" : L"%")).c_str());
+    AppendMenuW(m, MF_POPUP, (UINT_PTR)op, L"Window opacity");
+    AppendMenuW(m, MF_SEPARATOR, 0, nullptr);
     AppendMenuW(m, MF_STRING, 99, L"Manage favourites…");
     int r = TrackPopupMenu(m, TPM_RETURNCMD | TPM_RIGHTALIGN, pt.x, pt.y, 0, g_main, nullptr);
     DestroyMenu(m);
     if (r >= 100) ThemeSet(r - 100);
     if (r == 99) FavManager();
+    if (r == 90) BackdropChoosePicture();
+    if (r == 91) BackdropClearPicture();
+    if (r >= 80 && r < 86) SetWindowOpacity(pcts[r - 80]);
 }
 
 HBRUSH ThemeBrush(COLORREF c) {

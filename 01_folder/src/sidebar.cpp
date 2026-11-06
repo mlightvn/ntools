@@ -207,7 +207,7 @@ void UpdateUsage() {
 
 void PaintUsage(HDC dc, RECT rc) {
     const Theme& t = *g_theme;
-    Fill(dc, rc, t.sidebar);
+    Surface(dc, g_side, rc, t.sidebar);
     RECT ln{rc.left + S(14), rc.top, rc.right - S(14), rc.top + 1};
     Fill(dc, ln, t.border);
     SetBkMode(dc, TRANSPARENT);
@@ -475,6 +475,62 @@ const wchar_t* GlyphOf(const Node& n) {
     return k != g_knownGlyph.end() ? k->second : L"\uE8B7";
 }
 
+void DrawNode(NMTVCUSTOMDRAW* cd) {
+    size_t i = cd->nmcd.lItemlParam;
+    if (i >= g_nodes.size()) return;
+    const Node& n = g_nodes[i];
+    const Theme& t = *g_theme;
+    HDC dc = cd->nmcd.hdc;
+    HTREEITEM h = (HTREEITEM)cd->nmcd.dwItemSpec;
+    wchar_t text[300] = L"";
+    TVITEMW it{TVIF_STATE | TVIF_CHILDREN | TVIF_IMAGE | TVIF_TEXT};
+    it.hItem = h;
+    it.stateMask = TVIS_EXPANDED | TVIS_DROPHILITED | TVIS_SELECTED;
+    it.pszText = text;
+    it.cchTextMax = 300;
+    TreeView_GetItem(g_tree, &it);
+    RECT row = cd->nmcd.rc, cl;
+    GetClientRect(g_tree, &cl);
+    row.left = 0;
+    row.right = cl.right;
+    bool hdr = n.kind == K_HDR;
+    bool drop = it.state & TVIS_DROPHILITED, sel = !hdr && (it.state & TVIS_SELECTED), hot = !hdr && (cd->nmcd.uItemState & CDIS_HOT);
+    bool open = it.state & TVIS_EXPANDED;
+    bool current = !hdr && !n.path.empty() && Lower(n.path) == g_current;
+    Surface(dc, g_tree, row, drop || sel ? t.sel : hot ? t.hot : t.sidebar);
+    if (drop) Frame(dc, row, t.accent);
+    if (current) { RECT bar = row; bar.right = bar.left + S(2); Fill(dc, bar, t.accent); }
+    RECT tr;
+    if (!TreeView_GetItemRect(g_tree, h, &tr, TRUE)) return;
+    int iconW = S(18), gap = S(3);
+    RECT ic{tr.left - iconW - gap, row.top, tr.left - gap, row.bottom};
+    if (!hdr) {
+        if (it.cChildren) {  // expand / collapse chevron in the indent
+            RECT ch{ic.left - S(14), row.top, ic.left, row.bottom};
+            Glyph(dc, open ? L"" : L"", ch, t.faint, g_iconFontSmall);
+        }
+        if (t.icons == ICON_SYSTEM) {
+            int sz = GetSystemMetricsForDpi(SM_CXSMICON, g_dpi);
+            ImageList_DrawEx(SysImageList(), it.iImage, dc, (ic.left + ic.right - sz) / 2, (ic.top + ic.bottom - sz) / 2, sz, sz,
+                             CLR_NONE, CLR_NONE, ILD_TRANSPARENT);
+        } else {
+            COLORREF c = current ? t.accent : n.kind == K_FAV && !n.path.empty() ? t.accent : n.kind == K_RECENT ? t.faint : t.folder;
+            Glyph(dc, GlyphOf(n), ic, c);
+        }
+    }
+    RECT txt{hdr ? S(16) : tr.left, row.top, row.right - S(hdr ? 28 : 8), row.bottom};
+    HFONT f = hdr ? g_fontSmall : current ? g_fontBold : g_font;
+    COLORREF c = hdr ? t.faint : g_missing.count(Lower(n.path)) ? t.faint : current ? t.accent : n.kind == K_RECENT ? t.dim : t.text;
+    SelectObject(dc, f);
+    SetBkMode(dc, TRANSPARENT);
+    SetTextColor(dc, c);
+    DrawTextW(dc, text, -1, &txt, DT_SINGLELINE | DT_VCENTER | DT_END_ELLIPSIS | DT_NOPREFIX);
+    if (hdr && TreeView_GetChild(g_tree, h)) {  // section headings: a small chevron at the right
+        RECT ch{row.right - S(28), row.top, row.right - S(10), row.bottom};
+        Glyph(dc, open ? L"" : L"", ch, t.faint, g_iconFontSmall);
+    }
+}
+
 void OnNotify(NMHDR* nm, LRESULT& res) {
     switch (nm->code) {
     case NM_CLICK: {
@@ -549,39 +605,27 @@ void OnNotify(NMHDR* nm, LRESULT& res) {
         return;
     }
     case NM_CUSTOMDRAW: {
+        // every row is drawn here (the tree would paint opaque row backgrounds over a background picture)
         auto cd = (NMTVCUSTOMDRAW*)nm;
-        if (cd->nmcd.dwDrawStage == CDDS_PREPAINT) { res = CDRF_NOTIFYITEMDRAW; return; }
-        size_t i = cd->nmcd.lItemlParam;
-        if (i >= g_nodes.size()) return;
-        const Node& n = g_nodes[i];
-        const Theme& t = *g_theme;
-        bool current = n.kind != K_HDR && !n.path.empty() && Lower(n.path) == g_current;
-        if (cd->nmcd.dwDrawStage == CDDS_ITEMPREPAINT) {
-            res = CDRF_NOTIFYPOSTPAINT;
-            if (n.kind == K_HDR) {  // section labels
-                cd->clrText = t.faint;
-                cd->clrTextBk = t.sidebar;
-                SelectObject(cd->nmcd.hdc, g_fontSmall);
-                res |= CDRF_NEWFONT;
-            } else if (g_missing.count(Lower(n.path))) {
-                cd->clrText = t.faint;
-            } else if (current) {
-                cd->clrText = t.accent;
-                SelectObject(cd->nmcd.hdc, g_fontBold);
-                res |= CDRF_NEWFONT;
-            } else if (!(cd->nmcd.uItemState & (CDIS_SELECTED | CDIS_HOT))) {
-                cd->clrText = n.kind == K_RECENT ? t.dim : t.text;
-            }
-        } else if (cd->nmcd.dwDrawStage == CDDS_ITEMPOSTPAINT && n.kind != K_HDR && t.icons != ICON_SYSTEM) {
-            COLORREF c = current ? t.accent : n.kind == K_FAV && !n.path.empty() ? t.accent : n.kind == K_RECENT ? t.faint : t.folder;
-            TreeGlyph(cd->nmcd.hdc, g_tree, (HTREEITEM)cd->nmcd.dwItemSpec, GlyphOf(n), c);
+        HDC dc = cd->nmcd.hdc;
+        if (cd->nmcd.dwDrawStage == CDDS_PREPAINT) { res = CDRF_NOTIFYITEMDRAW | CDRF_NOTIFYPOSTPAINT; return; }
+        if (cd->nmcd.dwDrawStage == CDDS_POSTPAINT) {  // below the last row
+            RECT rc, lr;
+            GetClientRect(g_tree, &rc);
+            HTREEITEM last = TreeView_GetLastVisible(g_tree);
+            if (last && TreeView_GetItemRect(g_tree, last, &lr, FALSE)) rc.top = std::max(rc.top, lr.bottom);
+            if (rc.top < rc.bottom) Surface(dc, g_tree, rc, g_theme->sidebar);
+            return;
         }
+        if (cd->nmcd.dwDrawStage == CDDS_ITEMPREPAINT) { DrawNode(cd); res = CDRF_SKIPDEFAULT; }
         return;
     }
     }
 }
 
 LRESULT CALLBACK TreeProc(HWND h, UINT m, WPARAM w, LPARAM l, UINT_PTR, DWORD_PTR) {
+    // scrolling copies pixels; with a background picture the whole tree has to be repainted instead
+    if (BackdropActive() && (m == WM_VSCROLL || m == WM_MOUSEWHEEL || m == WM_KEYDOWN)) InvalidateRect(h, nullptr, FALSE);
     switch (m) {
     case WM_MBUTTONUP: {
         POINT pt{GET_X_LPARAM(l), GET_Y_LPARAM(l)};
@@ -649,7 +693,7 @@ LRESULT CALLBACK SideProc(HWND h, UINT m, WPARAM w, LPARAM l) {
         HDC dc = BeginPaint(h, &ps);
         RECT rc; GetClientRect(h, &rc);
         RECT top = rc; top.bottom = S(6);
-        Fill(dc, top, g_theme->sidebar);
+        Surface(dc, g_side, top, g_theme->sidebar);
         RECT u = rc; u.top = rc.bottom - S(kUsageH);
         PaintUsage(dc, u);
         EndPaint(h, &ps);

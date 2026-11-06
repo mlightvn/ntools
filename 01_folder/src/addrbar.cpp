@@ -101,7 +101,7 @@ void AddrBar::Layout(HDC dc) {
 void AddrBar::Paint(HDC dc) {
     const Theme& t = *g_theme;
     RECT rc; GetClientRect(hwnd, &rc);
-    Fill(dc, rc, t.pane);
+    Surface(dc, hwnd, rc, t.pane);
     COLORREF frame = err_ ? RGB(220, 70, 70) : edit_ && GetFocus() == edit_ ? t.accent : t.border;
     RoundFill(dc, rc, S(8), t.input, frame);
     if (edit_) return;

@@ -111,7 +111,7 @@ void Pane::DrawButton(DRAWITEMSTRUCT* d) {
     int id = d->CtlID;
     bool fav = id == ID_STAR && IsFavourite(Path());
     bool dis = d->itemState & ODS_DISABLED;
-    Fill(d->hDC, d->rcItem, t.pane);
+    Surface(d->hDC, d->hwndItem, d->rcItem, t.pane);
     if (d->itemState & ODS_SELECTED) RoundFill(d->hDC, d->rcItem, S(6), t.hot, t.hot);
     COLORREF c = dis ? t.faint : fav ? RGB(250, 190, 40) : t.dim;
     Glyph(d->hDC, fav ? L"" : kGlyph[id - ID_BACK], d->rcItem, c);
@@ -216,7 +216,7 @@ bool Pane::CloseRect(int i, RECT* r) {
 void Pane::PaintTabs(HDC dc) {
     const Theme& t = *g_theme;
     RECT rc; GetClientRect(tabs, &rc);
-    Fill(dc, rc, t.app);
+    Surface(dc, tabs, rc, t.app);
     RECT line = rc; line.top = line.bottom - 1;
     Fill(dc, line, t.border);
     bool active = ActivePane() == this;
@@ -225,12 +225,12 @@ void Pane::PaintTabs(HDC dc) {
         RECT r = tabRects_[i];
         bool cur = i == cur_;
         if (cur) {
-            Fill(dc, r, t.pane);
+            Surface(dc, tabs, r, t.pane);
             RECT e = r; e.right = e.left + 1; Fill(dc, e, t.border);
             e = r; e.left = e.right - 1; Fill(dc, e, t.border);
             e = r; e.bottom = e.top + (active ? S(2) : 1); Fill(dc, e, active ? t.accent : t.border);
         } else if (i == tabHot_) {
-            Fill(dc, r, t.hot);
+            Surface(dc, tabs, r, t.hot);
         }
         const wstring& p = tabs_[i]->path;
         RECT ic = r; ic.left += S(10); ic.right = ic.left + S(18);
@@ -386,7 +386,7 @@ void Pane::DrawRow(HDC dc, int i) {
     row.left = client.left;
     row.right = std::max(row.right, client.right);
     bool sel = ListView_GetItemState(list, i, LVIS_SELECTED) != 0;
-    Fill(dc, row, sel ? th.sel : i == hotRow_ || i == dropHi_ ? th.hot : th.pane);
+    Surface(dc, list, row, sel ? th.sel : i == hotRow_ || i == dropHi_ ? th.hot : th.pane);
     if (sel) { RECT bar = row; bar.right = bar.left + S(2); Fill(dc, bar, th.selBorder); }
     if (i == dropHi_) Frame(dc, row, th.accent);
     if (th.rowLine != th.pane) { RECT ln = row; ln.top = ln.bottom - 1; Fill(dc, ln, th.rowLine); }
@@ -423,7 +423,7 @@ void Pane::DrawRow(HDC dc, int i) {
 void Pane::PaintHeader(HWND h, HDC dc) {
     const Theme& t = *g_theme;
     RECT rc; GetClientRect(h, &rc);
-    Fill(dc, rc, t.pane);
+    Surface(dc, h, rc, t.pane);
     RECT ln = rc; ln.top = ln.bottom - 1;
     Fill(dc, ln, t.border);
     SetBkMode(dc, TRANSPARENT);
@@ -487,6 +487,10 @@ LRESULT CALLBACK Pane::HeaderProc(HWND h, UINT m, WPARAM w, LPARAM l, UINT_PTR, 
 
 LRESULT CALLBACK Pane::ListProc(HWND h, UINT m, WPARAM w, LPARAM l, UINT_PTR, DWORD_PTR ref) {
     auto self = (Pane*)ref;
+    // scrolling copies pixels; with a background picture the rows must be repainted over the fixed picture
+    if (BackdropActive() && (m == WM_VSCROLL || m == WM_HSCROLL || m == WM_MOUSEWHEEL || m == WM_MOUSEHWHEEL || m == WM_KEYDOWN ||
+                             m == LVM_SCROLL || m == LVM_ENSUREVISIBLE))
+        InvalidateRect(h, nullptr, FALSE);
     switch (m) {
     case WM_MOUSEMOVE: {
         if (!self->rowTracking_) {
@@ -1170,7 +1174,7 @@ void Pane::OnNotify(NMHDR* nm, LRESULT& res) {
                 RECT hr; GetWindowRect(hdr, &hr);
                 rc.top = hr.bottom - hr.top;
             }
-            if (rc.top < rc.bottom) Fill(cd->nmcd.hdc, rc, g_theme->pane);
+            if (rc.top < rc.bottom) Surface(cd->nmcd.hdc, list, rc, g_theme->pane);
         }
         return;
     }
@@ -1296,7 +1300,7 @@ LRESULT Pane::Proc(UINT m, WPARAM w, LPARAM l) {
         PAINTSTRUCT ps;
         HDC dc = BeginPaint(hwnd, &ps);
         RECT rc; GetClientRect(hwnd, &rc);
-        Fill(dc, rc, th.pane);
+        Surface(dc, hwnd, rc, th.pane);
         RECT ln = rc; ln.top = S(kTabH) + S(kNavH) - 1; ln.bottom = ln.top + 1;
         Fill(dc, ln, th.border);
         SetBkMode(dc, TRANSPARENT);

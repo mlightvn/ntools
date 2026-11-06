@@ -133,7 +133,7 @@ COLORREF Darker(COLORREF c) { return RGB(GetRValue(c) * 4 / 5, GetGValue(c) * 4 
 void Paint(HDC dc) {
     const Theme& t = *g_theme;
     RECT rc; GetClientRect(g_tb, &rc);
-    Fill(dc, rc, t.toolbar);
+    Surface(dc, g_tb, rc, t.toolbar);
     RECT ln = rc; ln.top = ln.bottom - 1;
     Fill(dc, ln, t.border);
     for (int x : g_seps) { RECT s{x, rc.top + S(16), x + 1, rc.bottom - S(16)}; Fill(dc, s, t.border); }

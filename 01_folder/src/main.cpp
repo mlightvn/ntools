@@ -69,7 +69,7 @@ static int StatusH() { return S(30); }
 static void PaintStatusBar(HDC dc, const RECT& rc) {
     const Theme& t = *g_theme;
     RECT bar{rc.left, rc.bottom - StatusH(), rc.right, rc.bottom};
-    Fill(dc, bar, t.toolbar);
+    Surface(dc, g_main, bar, t.toolbar);
     RECT ln = bar; ln.bottom = ln.top + 1;
     Fill(dc, ln, t.border);
     SetBkMode(dc, TRANSPARENT);
@@ -482,6 +482,7 @@ static LRESULT CALLBACK MainProc(HWND h, UINT m, WPARAM w, LPARAM l) {
         ThemeFonts();
         ThemeTitleBar(h);
         ToolbarCreate(h);
+        ApplyWindowOpacity();
         for (int i = 0; i < 3; i++) { g_panes[i] = new Pane(); g_panes[i]->Create(h, i); }
         SidebarCreate(h);
         SetTimer(h, 78, 1000, nullptr);  // refresh the "unsaved profile" marker
@@ -489,7 +490,16 @@ static LRESULT CALLBACK MainProc(HWND h, UINT m, WPARAM w, LPARAM l) {
         AddClipboardFormatListener(h);
         return 0;
     }
-    case WM_SIZE: Relayout(); return 0;
+    case WM_SIZE:
+        Relayout();
+        if (BackdropActive()) RedrawWindow(h, nullptr, nullptr, RDW_INVALIDATE | RDW_ALLCHILDREN);  // the picture is scaled to the window
+        return 0;
+    case WM_EXITSIZEMOVE:
+    case WM_MOVE:
+        // Glass is aligned to the screen: repaint once the window stops moving
+        if (BackdropFollowsScreen() && (m == WM_EXITSIZEMOVE || !(GetKeyState(VK_LBUTTON) < 0)))
+            RedrawWindow(h, nullptr, nullptr, RDW_INVALIDATE | RDW_ALLCHILDREN);
+        return 0;
     case WM_PAINT: {
         PAINTSTRUCT ps;
         HDC dc = BeginPaint(h, &ps);
@@ -497,7 +507,7 @@ static LRESULT CALLBACK MainProc(HWND h, UINT m, WPARAM w, LPARAM l) {
         HDC mem = CreateCompatibleDC(dc);
         HBITMAP bmp = CreateCompatibleBitmap(dc, rc.right, rc.bottom);
         HGDIOBJ ob = SelectObject(mem, bmp);
-        Fill(mem, rc, g_theme->app);  // splitter gaps
+        Surface(mem, g_main, rc, g_theme->app);  // splitter gaps
         PaintStatusBar(mem, rc);
         BitBlt(dc, ps.rcPaint.left, ps.rcPaint.top, ps.rcPaint.right - ps.rcPaint.left, ps.rcPaint.bottom - ps.rcPaint.top, mem,
                ps.rcPaint.left, ps.rcPaint.top, SRCCOPY);

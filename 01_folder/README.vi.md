@@ -32,7 +32,9 @@ build.bat
 ```
 
 - **Toolbar** (luôn hiện): New folder, Cut, Copy, Paste, Rename, Delete (Shift+click = xóa vĩnh viễn), Terminal (mở Windows Terminal, hoặc cmd, tại folder hiện tại). Các nút tác động lên pane đang active. Bên phải: chọn 1 / 2 / 3 pane, chọn theme và menu profile.
-- **Theme**: bấm nút bảng màu trên toolbar. **Void** (xanh navy tối, mặc định), **Flux** (tím tối, icon file dạng ô màu kèm nhãn đuôi file), **Mono** (đen, nhấn xanh lá, font monospace toàn bộ) và **Light** (icon của Windows). Theme đổi luôn màu thanh tiêu đề, menu và thanh cuộn. Lựa chọn được lưu trong `nexplorer.ini` (`[Window] theme=`).
+- **Theme**: bấm nút bảng màu trên toolbar. **Void** (xanh navy tối, mặc định), **Flux** (tím tối, icon file dạng ô màu kèm nhãn đuôi file), **Mono** (đen, nhấn xanh lá, font monospace toàn bộ), **Glass** (các khung mờ như kính đặt trên hình nền desktop đã làm nhòe, khớp vị trí trên màn hình) và **Light** (icon của Windows). Theme đổi luôn màu thanh tiêu đề, menu và thanh cuộn. Lựa chọn được lưu trong `nexplorer.ini` (`[Window] theme=`).
+  - **Background picture…** (cùng menu): chọn một hình làm nền cho cả cửa sổ, dùng được với mọi theme; chữ vẫn dễ đọc. Với Glass, hình bạn chọn được làm nhòe thay cho hình nền desktop. **Remove background picture** để tắt.
+  - **Window opacity** (cùng menu): độ đục của cửa sổ từ 100% xuống 70%, để nhìn xuyên thấy phía sau.
 - **Status bar** (dưới cùng): nhắc phím tắt; bấm **Hidden files on/off** để hiện/ẩn file ẩn (giống Ctrl+H).
 - Có 1, 2 hoặc 3 pane: bấm nút layout trên toolbar hoặc Ctrl+1 / 2 / 3. Kéo thanh chia giữa các pane để đổi độ rộng. Mỗi pane có tab riêng, tab mới mở ở **This PC**. Pane đang active hiện chữ `ACTIVE` và vạch màu trên tab hiện tại.
 - **Tab**: bấm `×` trên tab để đóng (hoặc Ctrl+W, middle-click). Chuột phải lên tab: Close tab, Close other tabs, Close tabs to the right, Duplicate tab, New tab. Double-click vùng trống của thanh tab để mở tab mới.
@@ -162,6 +164,7 @@ Ctrl+C ghi cùng lúc nhiều định dạng, nên mỗi nơi dán sẽ ra kết
 - [x] Theme Void / Flux / Mono / Light, đổi theme khi đang chạy; toolbar chung (New folder, Cut, Copy, Paste, Rename, Delete, Terminal); status bar
 - [x] Tìm kiếm: mọi từ theo thứ tự bất kỳ, không phân biệt dấu, "cụm từ", ký tự đại diện, =tên chính xác; kết quả hiện dần, quét song song
 - [x] Sidebar: ghim Quick access, Favourites có nhóm + cửa sổ quản lý (kéo thả), Recent, cây thư mục, dung lượng ổ
+- [x] Hình nền tự chọn (mọi theme), theme Glass (hình nền làm nhòe), độ trong suốt cửa sổ 70–100%
 
 Chưa làm (giới hạn hiện tại):
 
