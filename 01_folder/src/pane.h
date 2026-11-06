@@ -3,6 +3,7 @@
 #pragma once
 #include "fs.h"
 #include "addrbar.h"
+#include "search.h"
 
 struct Tab {
     int id;
@@ -18,6 +19,13 @@ struct Tab {
     vector<wstring> selNames;
     wstring focusName;
     int top = 0;
+    // search results ("::search" paths)
+    SearchCancel cancel;          // set to stop the running search
+    ULONGLONG searchFolders = 0;
+    DWORD searchMs = 0;
+    bool searchLimited = false;
+    bool userSorted = false;      // results are re-sorted as they arrive only after a header click
+    ~Tab() { if (cancel) *cancel = true; }
 };
 
 // commands from the global toolbar
@@ -33,7 +41,7 @@ public:
     const wstring& Path() { return T()->path; }
     int TabCount() const { return (int)tabs_.size(); }
     int CurTab() const { return cur_; }
-    wstring TabPath(int i) { return tabs_[i]->path; }
+    wstring TabPath(int i) { return IsSearch(tabs_[i]->path) ? SearchRoot(tabs_[i]->path) : tabs_[i]->path; }  // profiles keep the folder, not the search
 
     void NewTab(const wstring& path, bool activate = true);
     void ResetTabs(const vector<wstring>& paths, int cur);  // replace all tabs (profile switch)
@@ -52,6 +60,9 @@ public:
     void UpdateStar();
     void ApplyTheme();              // colours, row height, scrollbars for the current theme
     void Command(PaneCmd c);
+    void Search(const wstring& query);   // search the current folder (recursively); "" leaves the search
+    bool InSearch() { return IsSearch(Path()); }
+    void PruneMissing();                 // search results: drop items that no longer exist
 
     bool HandleKey(const MSG& m);   // keys while the list has focus
     bool DropTarget(POINT screen, HWND under, wstring& dir);
@@ -76,7 +87,9 @@ private:
     RECT plusRect_{};
     int tabHot_ = -1, closeHot_ = -1;
 
-    int Mode();                    // 0 folder, 1 This PC, 2 Recycle Bin
+    int Mode();                    // 0 folder, 1 This PC, 2 Recycle Bin, 3 search results
+    int ArrowCol();                // column that shows the sort arrow (-1: none)
+    void StopSearch(Tab* t);
     void BinDelete(bool all);
     void BinRestore();
     void LayoutTabs();

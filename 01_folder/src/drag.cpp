@@ -2,6 +2,7 @@
 #include "app.h"
 #include "pane.h"
 #include "fileops.h"
+#include "theme.h"
 
 namespace {
 
@@ -41,7 +42,7 @@ bool HasDir(const vector<wstring>& v) {
 bool Valid(const Target& t, bool copy) {
     if (!t.ok) return false;
     if (t.pin) return HasDir(D.paths);
-    if (t.dir.empty()) return false;
+    if (t.dir.empty() || IsSearch(t.dir)) return false;  // search results are not a folder
     for (auto& p : D.paths) {
         if (IEq(p, t.dir) || (IStarts(t.dir, p) && t.dir.size() > p.size() && t.dir[p.size()] == L'\\')) return false;
         if (!copy && IEq(Parent(p), t.dir)) return false;
@@ -54,12 +55,11 @@ LRESULT CALLBACK TipProc(HWND h, UINT m, WPARAM w, LPARAM l) {
         PAINTSTRUCT ps;
         HDC dc = BeginPaint(h, &ps);
         RECT rc; GetClientRect(h, &rc);
-        HBRUSH bg = CreateSolidBrush(RGB(255, 255, 255)), fr = CreateSolidBrush(RGB(120, 160, 210));
-        FillRect(dc, &rc, bg);
-        FrameRect(dc, &rc, fr);
-        DeleteObject(bg); DeleteObject(fr);
+        Fill(dc, rc, g_theme->input);
+        Frame(dc, rc, g_theme->accent);
         SelectObject(dc, g_font);
         SetBkMode(dc, TRANSPARENT);
+        SetTextColor(dc, g_theme->text);
         InflateRect(&rc, -S(8), 0);
         DrawTextW(dc, D.text.c_str(), -1, &rc, DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
         EndPaint(h, &ps);
@@ -113,7 +113,7 @@ void DragUpdate() {
     wstring text;
     if (!ok) text = L"✕  " + what;
     else if (t.pin) text = L"★  Pin to Favourites";
-    else if (IsVirtual(t.dir)) text = L"→  Move " + what + L" to Recycle Bin";
+    else if (IsBin(t.dir)) text = L"→  Move " + what + L" to Recycle Bin";
     else text = (copy ? L"+  Copy " : L"→  Move ") + what + L" to " + (IsRoot(t.dir) ? t.dir.substr(0, 2) : FileName(t.dir));
     SetTip(text, pt);
     SetCursor(LoadCursor(nullptr, ok ? IDC_ARROW : IDC_NO));
@@ -132,7 +132,7 @@ void DragEnd(bool drop) {
     SidebarClearDropHi();
     if (!drop || !Valid(t, copy)) return;
     if (t.pin) { for (auto& p : D.paths) if (IsDir(p)) AddFavourite(p); return; }
-    if (IsVirtual(t.dir)) { FileOp(OP_RECYCLE, D.paths); return; }
+    if (IsBin(t.dir)) { FileOp(OP_RECYCLE, D.paths); return; }
     FileOp(copy ? OP_COPY : OP_MOVE, D.paths, t.dir);
 }
 
@@ -154,6 +154,6 @@ void DropExternal(HDROP h) {
     SidebarClearDropHi();
     if (!Valid(t, true)) return;
     if (t.pin) { for (auto& p : files) if (IsDir(p)) AddFavourite(p); return; }
-    if (IsVirtual(t.dir)) { FileOp(OP_RECYCLE, files); return; }
+    if (IsBin(t.dir)) { FileOp(OP_RECYCLE, files); return; }
     FileOp(GetKeyState(VK_SHIFT) < 0 ? OP_MOVE : OP_COPY, files, t.dir);
 }

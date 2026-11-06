@@ -72,6 +72,7 @@ build.bat
 | Tab, F6 | Switch to the other pane |
 | Ctrl+1 / 2 / 3 | 1 / 2 / 3 panes |
 | Ctrl+L, Alt+D, F4 | Edit the address bar |
+| Ctrl+F, Ctrl+K | Search the current folder and its subfolders (Esc goes back) |
 | Ctrl+S / Ctrl+P | Save the layout to the current profile / Open the profile menu |
 | Ctrl+D | Pin / unpin the current folder |
 | Ctrl+B | Show / hide the sidebar |
@@ -81,6 +82,23 @@ build.bat
 Mouse:
 - Double-click to open; middle-click a tab to close it; middle-click or Ctrl+click a sidebar item to open it in a new tab.
 - **Shift + mouse wheel** scrolls the file list horizontally. A tilt wheel and horizontal touchpad swipes do too.
+
+## Search
+
+Press **Ctrl+F** or **Ctrl+K**, or click the search box in the middle of the toolbar. Results appear while you type (or press Enter) and stream into the active pane as they are found, nearest folders first. The search covers the current folder and all its subfolders; from This PC it covers every local drive.
+
+| You type | Finds |
+|---|---|
+| `tai lieu` | names that contain every word, in any order: `Tài liệu học tập.docx`, `lieu-tai.txt` |
+| `"bao cao"` | names that contain the exact phrase |
+| `*.pdf`, `IMG_20??*` | wildcards match the whole name |
+| `=readme.md` | only this exact name |
+
+- Upper / lower case and accents are ignored (`cafe` finds `Café`, `duong` finds `Đường`), and full-width / half-width characters match each other.
+- There is no index: every search reads the folders, so results are always current. An SSD scans a few thousand folders per second; a hard disk is slower the first time.
+- Results show Name, Folder (relative to the searched folder; `.\` means directly inside it), Date modified, Size and Type. Open, rename, copy, cut, delete and drag work as usual; right-click → **Open file location** jumps to the item. Click a column header to sort.
+- Esc in the search box, Back or Backspace returns to the folder. Hidden files are included only when hidden files are shown. Junctions and symbolic links are not followed.
+- A profile saves the folder of a search tab, not the search.
 
 ## Drag and drop
 
@@ -139,6 +157,7 @@ Tested:
 - [x] Profiles: This PC by default, Ctrl+S then reopening restores the layout, Save as / Rename / Delete, switching profiles, prompt for unsaved changes
 - [x] Shift + wheel scrolls horizontally; the plain wheel still scrolls vertically; tilt wheel / touchpad scroll horizontally
 - [x] Themes Void / Flux / Mono / Light, switching at runtime; global toolbar (New folder, Cut, Copy, Paste, Rename, Delete, Terminal); status bar
+- [x] Search: every word in any order, accent-insensitive, "phrase", wildcards, =exact name; results stream in, parallel scan
 
 Not done yet (current limitations):
 

@@ -21,6 +21,8 @@ void ToolbarCreate(HWND parent);
 HWND ToolbarHwnd();
 int ToolbarHeight();
 void ToolbarRefresh();                 // re-layout (profile name / pane count changed)
+void ToolbarFocusSearch();             // Ctrl+F / Ctrl+K
+void ToolbarSyncSearch();              // show the active pane's query (or clear) after pane / tab changes
 
 // INI (UTF-16 file next to the exe)
 wstring IniGet(const wchar_t* sec, const wchar_t* key, const wchar_t* def = L"");

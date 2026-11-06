@@ -9,11 +9,44 @@ namespace {
 enum { T_NEWFOLDER = 1, T_CUT, T_COPY, T_PASTE, T_RENAME, T_DELETE, T_TERMINAL, T_PANE1, T_PANE2, T_PANE3, T_THEME, T_PROFILE };
 struct TItem { int id; const wchar_t* glyph; wstring label; const wchar_t* tip; RECT r; };
 
-HWND g_tb, g_tip;
+HWND g_tb, g_tip, g_edit;
 vector<TItem> g_items;
 vector<int> g_seps;
+RECT g_searchR{};          // the search box frame (the EDIT sits inside it)
 int g_hot = -1, g_down = -1;
 bool g_track = false;
+enum { TIMER_SEARCH = 1 };
+
+void RunSearch() {
+    KillTimer(g_tb, TIMER_SEARCH);
+    wchar_t buf[1024];
+    GetWindowTextW(g_edit, buf, ARRAYSIZE(buf));
+    ActivePane()->Search(buf);
+}
+
+// Enter: search now; Esc: clear and go back to the folder; Down: into the results
+LRESULT CALLBACK EditProc(HWND h, UINT m, WPARAM w, LPARAM l, UINT_PTR, DWORD_PTR) {
+    switch (m) {
+    case WM_KEYDOWN:
+        if (w == VK_RETURN) { RunSearch(); return 0; }
+        if (w == VK_ESCAPE) {
+            SetWindowTextW(h, L"");
+            KillTimer(g_tb, TIMER_SEARCH);
+            ActivePane()->Search(L"");
+            ActivePane()->FocusList();
+            return 0;
+        }
+        if (w == VK_DOWN) { KillTimer(g_tb, TIMER_SEARCH); if (GetWindowTextLengthW(h)) RunSearch(); ActivePane()->FocusList(); return 0; }
+        break;
+    case WM_CHAR:
+        if (w == VK_RETURN || w == VK_ESCAPE) return 0;  // no beep
+        break;
+    case WM_SETFOCUS: case WM_KILLFOCUS:
+        InvalidateRect(g_tb, &g_searchR, FALSE);
+        break;
+    }
+    return DefSubclassProc(h, m, w, l);
+}
 
 int TextW(HDC dc, const wstring& s) { SIZE sz; GetTextExtentPoint32W(dc, s.c_str(), (int)s.size(), &sz); return sz.cx; }
 
@@ -58,6 +91,21 @@ void Layout() {
     addR(T_PANE3, nullptr, L"", L"3 panes (Ctrl+3)", bh);
     addR(T_PANE2, nullptr, L"", L"2 panes (Ctrl+2)", bh);
     addR(T_PANE1, nullptr, L"", L"1 pane (Ctrl+1)", bh);
+    // search box: centred in the window when there is room, else in the gap between the two button groups
+    int gapL = x + S(12), gapR = rx - S(12);
+    int sw = std::min(S(460), gapR - gapL);
+    if (sw >= S(140)) {
+        int sx = std::max(gapL, std::min((int)rc.right / 2 - sw / 2, gapR - sw));
+        g_searchR = {sx, y, sx + sw, y + bh};
+        TEXTMETRICW tm;
+        GetTextMetricsW(dc, &tm);
+        int eh = tm.tmHeight + S(2);
+        MoveWindow(g_edit, sx + S(34), y + (bh - eh) / 2, sw - S(34) - S(64), eh, TRUE);
+        ShowWindow(g_edit, SW_SHOW);
+    } else {
+        g_searchR = {};
+        ShowWindow(g_edit, SW_HIDE);
+    }
     SelectObject(dc, of);
     ReleaseDC(g_tb, dc);
     for (auto& it : g_items) {  // tooltips follow the item rectangles
@@ -90,6 +138,20 @@ void Paint(HDC dc) {
     Fill(dc, ln, t.border);
     for (int x : g_seps) { RECT s{x, rc.top + S(16), x + 1, rc.bottom - S(16)}; Fill(dc, s, t.border); }
     SetBkMode(dc, TRANSPARENT);
+    if (g_searchR.right > g_searchR.left) {
+        bool focus = GetFocus() == g_edit;
+        RoundFill(dc, g_searchR, S(8), t.input, focus ? t.accent : t.border);
+        RECT g = g_searchR; g.left += S(8); g.right = g.left + S(22);
+        Glyph(dc, L"", g, focus ? t.accent : t.faint);
+        SelectObject(dc, g_fontMono);
+        const wchar_t* key = L"Ctrl F";
+        SIZE ks; GetTextExtentPoint32W(dc, key, lstrlenW(key), &ks);
+        int cy = (g_searchR.top + g_searchR.bottom) / 2, kh = S(18);
+        RECT k{g_searchR.right - S(10) - ks.cx - S(12), cy - kh / 2, g_searchR.right - S(10), cy + kh / 2};
+        RoundFill(dc, k, S(5), t.chip, t.border);
+        SetTextColor(dc, t.faint);
+        DrawTextW(dc, key, -1, &k, DT_SINGLELINE | DT_VCENTER | DT_CENTER | DT_NOPREFIX);
+    }
     for (int i = 0; i < (int)g_items.size(); i++) {
         const TItem& it = g_items[i];
         bool hot = i == g_hot, down = i == g_down && hot;
@@ -159,6 +221,19 @@ LRESULT CALLBACK Proc(HWND h, UINT m, WPARAM w, LPARAM l) {
     POINT pt{GET_X_LPARAM(l), GET_Y_LPARAM(l)};
     switch (m) {
     case WM_SIZE: Layout(); InvalidateRect(h, nullptr, FALSE); return 0;
+    case WM_CTLCOLOREDIT:
+        SetTextColor((HDC)w, g_theme->text);
+        SetBkColor((HDC)w, g_theme->input);
+        return (LRESULT)ThemeBrush(g_theme->input);
+    case WM_COMMAND:
+        if ((HWND)l == g_edit && HIWORD(w) == EN_CHANGE && GetFocus() == g_edit) SetTimer(h, TIMER_SEARCH, 450, nullptr);  // search as you type
+        return 0;
+    case WM_TIMER:
+        if (w == TIMER_SEARCH) RunSearch();
+        return 0;
+    case WM_LBUTTONDOWN:
+        if (PtInRect(&g_searchR, pt)) { SetFocus(g_edit); return 0; }
+        g_down = Hit(pt); SetCapture(h); InvalidateRect(h, nullptr, FALSE); return 0;
     case WM_ERASEBKGND: return 1;
     case WM_PAINT: {
         PAINTSTRUCT ps;
@@ -182,7 +257,6 @@ LRESULT CALLBACK Proc(HWND h, UINT m, WPARAM w, LPARAM l) {
         return 0;
     }
     case WM_MOUSELEAVE: g_track = false; g_hot = -1; InvalidateRect(h, nullptr, FALSE); return 0;
-    case WM_LBUTTONDOWN: g_down = Hit(pt); SetCapture(h); InvalidateRect(h, nullptr, FALSE); return 0;
     case WM_LBUTTONUP: {
         int i = Hit(pt), d = g_down;
         g_down = -1;
@@ -207,6 +281,10 @@ void ToolbarCreate(HWND parent) {
     g_tb = CreateWindowExW(0, L"NxToolbar", L"", WS_CHILD | WS_VISIBLE, 0, 0, 10, 10, parent, nullptr, g_inst, nullptr);
     g_tip = CreateWindowExW(WS_EX_TOPMOST, TOOLTIPS_CLASSW, nullptr, WS_POPUP | TTS_ALWAYSTIP | TTS_NOPREFIX, 0, 0, 0, 0, g_tb, nullptr, g_inst, nullptr);
     ThemeWindow(g_tip);
+    g_edit = CreateWindowExW(0, L"EDIT", L"", WS_CHILD | WS_VISIBLE | WS_TABSTOP | ES_AUTOHSCROLL, 0, 0, 10, 10, g_tb, nullptr, g_inst, nullptr);
+    SendMessageW(g_edit, WM_SETFONT, (WPARAM)g_font, FALSE);
+    SendMessageW(g_edit, EM_SETCUEBANNER, TRUE, (LPARAM)L"Search this folder and its subfolders");
+    SetWindowSubclass(g_edit, EditProc, 1, 0);
 }
 
 HWND ToolbarHwnd() { return g_tb; }
@@ -215,6 +293,27 @@ int ToolbarHeight() { return S(56); }
 void ToolbarRefresh() {
     if (!g_tb) return;
     ThemeWindow(g_tip);
+    ThemeWindow(g_edit);
     Layout();
     InvalidateRect(g_tb, nullptr, FALSE);
+    InvalidateRect(g_edit, nullptr, TRUE);
+}
+
+void ToolbarFocusSearch() {
+    if (!g_edit || !IsWindowVisible(g_edit)) return;
+    SetFocus(g_edit);
+    SendMessageW(g_edit, EM_SETSEL, 0, -1);
+}
+
+void ToolbarSyncSearch() {
+    if (!g_edit || GetFocus() == g_edit) return;  // never rewrite the text while the user is typing
+    Pane* p = ActivePane();
+    if (!p) return;
+    wstring q = p->InSearch() ? SearchQuery(p->Path()) : L"";
+    wchar_t cur[1024];
+    GetWindowTextW(g_edit, cur, ARRAYSIZE(cur));
+    if (q != cur) SetWindowTextW(g_edit, q.c_str());
+    wstring where = p->InSearch() ? SearchRoot(p->Path()) : p->Path();
+    wstring cue = IsBin(where) ? L"The Recycle Bin can't be searched" : L"Search " + (where.empty() ? wstring(L"all drives") : DisplayName(where));
+    SendMessageW(g_edit, EM_SETCUEBANNER, TRUE, (LPARAM)cue.c_str());
 }

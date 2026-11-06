@@ -107,7 +107,7 @@ void SortItems(vector<Item>& v, int col, bool asc) {
         case C_EXT: r = StrCmpLogicalW(PathFindExtensionW(a.name.c_str()), PathFindExtensionW(b.name.c_str())); break;
         case C_ATTR: r = Cmp3(a.attr, b.attr); break;
         case C_DTYPE: r = Cmp3(a.dtype, b.dtype); break;
-        case C_ORIGIN: r = StrCmpLogicalW(a.label.c_str(), b.label.c_str()); break;
+        case C_ORIGIN: case C_FOLDER: r = StrCmpLogicalW(a.label.c_str(), b.label.c_str()); break;
         case C_DELETED: r = CmpFt(a.mt, b.mt); break;
         }
         if (r == 0) r = StrCmpLogicalW(a.name.c_str(), b.name.c_str());
@@ -123,7 +123,7 @@ void ListAsync(HWND notify, int tabId, int gen, const wstring& path, int sortCol
         auto r = new ListResult{tabId, gen, path};
         if (path.empty()) {
             r->items = ListDrives();
-        } else if (IsVirtual(path)) {
+        } else if (IsBin(path)) {
             r->items = ListRecycleBin();
             SortItems(r->items, sortCol, asc);
         } else {

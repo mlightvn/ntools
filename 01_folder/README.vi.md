@@ -72,6 +72,7 @@ build.bat
 | Tab, F6 | Chuyển sang pane khác |
 | Ctrl+1 / 2 / 3 | 1 / 2 / 3 pane |
 | Ctrl+L, Alt+D, F4 | Sửa address bar |
+| Ctrl+F, Ctrl+K | Tìm trong folder hiện tại và các folder con (Esc để quay lại) |
 | Ctrl+S / Ctrl+P | Lưu layout vào profile hiện tại / Mở menu profile |
 | Ctrl+D | Ghim / bỏ ghim folder hiện tại |
 | Ctrl+B | Ẩn/hiện sidebar |
@@ -81,6 +82,23 @@ build.bat
 Chuột:
 - Double-click để mở; middle-click lên tab để đóng tab; middle-click hoặc Ctrl+click lên mục ở sidebar để mở trong tab mới.
 - **Shift + lăn chuột**: cuộn ngang danh sách file. Lăn nghiêng (tilt wheel) và vuốt ngang trên touchpad cũng cuộn ngang.
+
+## Tìm kiếm
+
+Bấm **Ctrl+F** hoặc **Ctrl+K**, hoặc bấm vào ô tìm kiếm giữa toolbar. Kết quả hiện ngay khi gõ (hoặc bấm Enter) và đổ dần vào pane đang active, folder gần hơn hiện trước. Tìm trong folder hiện tại và toàn bộ folder con; nếu đang ở This PC thì tìm trên mọi ổ trong máy.
+
+| Gõ | Tìm được |
+|---|---|
+| `tai lieu` | tên chứa đủ mọi từ, thứ tự bất kỳ: `Tài liệu học tập.docx`, `lieu-tai.txt` |
+| `"bao cao"` | tên chứa đúng cụm từ |
+| `*.pdf`, `IMG_20??*` | ký tự đại diện, khớp với toàn bộ tên |
+| `=readme.md` | chỉ đúng tên này |
+
+- Không phân biệt hoa thường và dấu (`cafe` ra `Café`, `duong` ra `Đường`); chữ full-width / half-width cũng khớp nhau.
+- Không dùng index: mỗi lần tìm đều đọc thư mục thật nên kết quả luôn đúng với hiện tại. SSD quét vài nghìn folder mỗi giây; ổ HDD chậm hơn ở lần đầu.
+- Cột kết quả: Name, Folder (đường dẫn tính từ folder đang tìm; `.\` là nằm ngay trong folder đó), Date modified, Size, Type. Mở, đổi tên, copy, cut, xóa, kéo thả như bình thường; chuột phải → **Open file location** để tới chỗ chứa file. Bấm tiêu đề cột để sắp xếp.
+- Esc trong ô tìm kiếm, Back hoặc Backspace để quay lại folder. File ẩn chỉ được tìm khi đang bật hiện file ẩn. Không đi theo junction / symbolic link.
+- Profile lưu folder của tab tìm kiếm, không lưu kết quả tìm.
 
 ## Kéo thả
 
@@ -139,6 +157,7 @@ Ctrl+C ghi cùng lúc nhiều định dạng, nên mỗi nơi dán sẽ ra kết
 - [x] Profile: mặc định This PC, Ctrl+S lưu rồi mở lại app ra đúng layout, Save as / Rename / Delete, chuyển profile, hỏi khi còn thay đổi chưa lưu
 - [x] Shift + lăn chuột cuộn ngang; lăn thường vẫn cuộn dọc; lăn nghiêng / touchpad cuộn ngang
 - [x] Theme Void / Flux / Mono / Light, đổi theme khi đang chạy; toolbar chung (New folder, Cut, Copy, Paste, Rename, Delete, Terminal); status bar
+- [x] Tìm kiếm: mọi từ theo thứ tự bất kỳ, không phân biệt dấu, "cụm từ", ký tự đại diện, =tên chính xác; kết quả hiện dần, quét song song
 
 Chưa làm (giới hạn hiện tại):
 

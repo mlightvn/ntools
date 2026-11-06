@@ -35,30 +35,32 @@ void AddrBar::SetPath(const wstring& p) {
 void AddrBar::Layout(HDC dc) {
     vector<Seg> all;
     all.push_back({L"This PC", L""});
-    if (IsVirtual(path_)) all.push_back({DisplayName(path_), path_});
-    else if (!path_.empty()) {
+    wstring p = IsSearch(path_) ? SearchRoot(path_) : path_;  // a search shows its folder, then the query
+    if (IsVirtual(p)) all.push_back({DisplayName(p), p});
+    else if (!p.empty()) {
         size_t pos;
         wstring root;
-        if (path_.rfind(L"\\\\", 0) == 0) {  // \\server\share
-            pos = path_.find(L'\\', 2);
-            pos = pos == wstring::npos ? pos : path_.find(L'\\', pos + 1);
-            root = path_.substr(0, pos);
+        if (p.rfind(L"\\\\", 0) == 0) {  // \\server\share
+            pos = p.find(L'\\', 2);
+            pos = pos == wstring::npos ? pos : p.find(L'\\', pos + 1);
+            root = p.substr(0, pos);
             all.push_back({root, root});
         } else {
-            root = path_.substr(0, 3);
+            root = p.substr(0, 3);
             pos = 3;
             all.push_back({root.substr(0, 2), root});
         }
         wstring acc = root;
-        while (pos != wstring::npos && pos < path_.size()) {
-            if (path_[pos] == L'\\') { pos++; continue; }
-            size_t e = path_.find(L'\\', pos);
-            wstring part = path_.substr(pos, e == wstring::npos ? wstring::npos : e - pos);
+        while (pos != wstring::npos && pos < p.size()) {
+            if (p[pos] == L'\\') { pos++; continue; }
+            size_t e = p.find(L'\\', pos);
+            wstring part = p.substr(pos, e == wstring::npos ? wstring::npos : e - pos);
             acc = Join(acc, part);
             all.push_back({part, acc});
             pos = e;
         }
     }
+    if (IsSearch(path_)) all.push_back({L"Search " + DisplayName(path_), path_});
     RECT rc; GetClientRect(hwnd, &rc);
     int h = rc.bottom, pad = S(6), aw = S(16), dw = S(24);
     drop_ = {rc.right - dw, 0, rc.right, h};
@@ -184,7 +186,7 @@ void AddrBar::BeginEdit() {
     if (edit_) { SetFocus(edit_); SendMessageW(edit_, EM_SETSEL, 0, -1); return; }
     RECT rc; GetClientRect(hwnd, &rc);
     int h = rc.bottom - S(4);
-    edit_ = CreateWindowExW(0, L"EDIT", IsFsPath(path_) ? path_.c_str() : DisplayName(path_).c_str(), WS_CHILD | WS_VISIBLE | ES_AUTOHSCROLL,
+    edit_ = CreateWindowExW(0, L"EDIT", IsSearch(path_) ? SearchRoot(path_).c_str() : IsFsPath(path_) ? path_.c_str() : DisplayName(path_).c_str(), WS_CHILD | WS_VISIBLE | ES_AUTOHSCROLL,
                             S(6), (rc.bottom - h) / 2 + S(1), rc.right - S(10), h, hwnd, nullptr, g_inst, nullptr);
     SendMessageW(edit_, WM_SETFONT, (WPARAM)g_font, TRUE);
     SetWindowSubclass(edit_, EditProc, 1, (DWORD_PTR)this);

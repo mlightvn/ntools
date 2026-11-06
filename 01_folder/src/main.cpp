@@ -119,6 +119,7 @@ void SetActive(Pane* p) {
             g_active = i;
             g_panes[old]->PaintBorder();
             p->PaintBorder();
+            ToolbarSyncSearch();
         }
 }
 
@@ -459,6 +460,7 @@ static bool GlobalKey(MSG& msg) {
         case 'H': ToggleHidden(); return true;
         case 'S': if (!shift) { ProfileSave(); return true; } break;
         case 'P': ProfileMenu(nullptr); return true;
+        case 'F': case 'K': ToolbarFocusSearch(); return true;
         }
     }
     if (alt && !ctrl && k == 'D') { p->addr.BeginEdit(); return true; }
@@ -573,7 +575,8 @@ static LRESULT CALLBACK MainProc(HWND h, UINT m, WPARAM w, LPARAM l) {
     case WM_APP_OPDONE: {
         std::unique_ptr<vector<wstring>> dirs((vector<wstring>*)l);
         for (int i = 0; i < 3; i++) {
-            if (IsVirtual(g_panes[i]->Path())) { g_panes[i]->Refresh(); continue; }  // Recycle Bin view: any op may change it
+            if (IsBin(g_panes[i]->Path())) { g_panes[i]->Refresh(); continue; }  // Recycle Bin view: any op may change it
+            if (g_panes[i]->InSearch()) { g_panes[i]->PruneMissing(); continue; }  // keep results, drop deleted / moved ones
             for (auto& d : *dirs)
                 if (IEq(g_panes[i]->Path(), d)) { g_panes[i]->Refresh(); break; }
         }

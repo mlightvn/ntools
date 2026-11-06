@@ -3,12 +3,13 @@
 #include "common.h"
 
 enum Col { C_NAME, C_TYPE, C_MTIME, C_SIZE, C_CTIME, C_ATIME, C_EXT, C_ATTR, C_FILECOLS,
-           C_DTYPE = C_FILECOLS, C_FREE, C_TOTAL, C_ORIGIN, C_DELETED, C_ALL };
+           C_DTYPE = C_FILECOLS, C_FREE, C_TOTAL, C_ORIGIN, C_DELETED, C_FOLDER, C_ALL };
 
 struct Item {
     wstring name;            // file name, or "C:\" for drives
     wstring label;           // drive label; Recycle Bin: original folder
     wstring real;            // Recycle Bin only: the $R... item on disk
+    wstring folder;          // search results: the folder that holds the item (label = folder relative to the search root)
     DWORD attr = 0;
     ULONGLONG size = 0;      // drives: total bytes
     ULONGLONG free = 0;      // drives only

@@ -157,11 +157,13 @@ void Pane::SwitchTab(int i) {
     Tab* t = T();
     addr.SetPath(t->path);
     UpdateStar();
-    watcher_.Watch(hwnd, t->path);
+    if (IsSearch(t->path)) watcher_.Stop();
+    else watcher_.Watch(hwnd, t->path);
     if (t->items.empty() && !t->loading) Load();
-    else { ShowItems(true); if (!t->loading) Refresh(); }
+    else { ShowItems(true); if (!t->loading && !IsSearch(t->path)) Refresh(); }  // finished searches are kept, not re-run
     Layout();
     InvalidateRect(hwnd, nullptr, FALSE);
+    if (this == ActivePane()) ToolbarSyncSearch();
 }
 
 void Pane::UpdateTabs() {
@@ -231,7 +233,7 @@ void Pane::PaintTabs(HDC dc) {
         }
         const wstring& p = tabs_[i]->path;
         RECT ic = r; ic.left += S(10); ic.right = ic.left + S(18);
-        Glyph(dc, IsVirtual(p) ? L"" : p.empty() ? L"" : L"", ic, cur ? t.text : t.dim);
+        Glyph(dc, IsSearch(p) ? L"\uE721" : IsVirtual(p) ? L"" : p.empty() ? L"" : L"", ic, cur ? t.text : t.dim);
         RECT tr = r; tr.left = ic.right + S(6); tr.right -= S(32);
         SelectObject(dc, g_font);
         SetTextColor(dc, cur ? t.text : t.dim);
@@ -412,6 +414,7 @@ void Pane::DrawRow(HDC dc, int i) {
         SetTextColor(dc, dim ? th.faint : col == C_NAME || sel ? th.text : th.dim);
         wstring s = CellText(it, col);
         if (col == C_SIZE && s.empty() && !it.dtype) s = L"—";  // folders: an em dash, like the design
+        if (col == C_FOLDER && s.empty()) s = L".\\";               // directly in the searched folder
         DrawTextW(dc, s.c_str(), -1, &cr, DT_SINGLELINE | DT_VCENTER | DT_END_ELLIPSIS | DT_NOPREFIX | (g_colDefs[col].right ? DT_RIGHT : DT_LEFT));
     }
 }
@@ -532,8 +535,50 @@ void Pane::Load() {
     t->gen++;
     t->loading = true;
     t->err = 0;
+    if (IsSearch(t->path)) {
+        StopSearch(t);
+        t->items.clear();
+        t->searchFolders = 0;
+        t->searchMs = 0;
+        t->searchLimited = false;
+        t->cancel = std::make_shared<std::atomic<bool>>(false);
+        ShowItems(false);
+        SearchAsync(hwnd, t->id, t->gen, SearchRoot(t->path), SearchQuery(t->path), t->cancel);
+        UpdateStatus();
+        return;
+    }
     ListAsync(hwnd, t->id, t->gen, t->path, t->sortCol, t->asc);
     UpdateStatus();
+}
+
+void Pane::StopSearch(Tab* t) {
+    if (t->cancel) { *t->cancel = true; t->cancel.reset(); }
+}
+
+void Pane::Search(const wstring& query) {
+    Tab* t = T();
+    bool in = IsSearch(t->path);
+    wstring root = in ? SearchRoot(t->path) : t->path;
+    if (IsVirtual(root)) { MessageBeep(MB_ICONWARNING); return; }  // the Recycle Bin can't be searched
+    size_t a = query.find_first_not_of(L" \t"), b = query.find_last_not_of(L" \t");
+    wstring q = a == wstring::npos ? L"" : query.substr(a, b - a + 1);
+    if (q.empty()) {  // leave the search
+        if (!in) return;
+        if (!t->back.empty() && IEq(t->back.back(), root)) GoBack();
+        else Navigate(root, false);
+        return;
+    }
+    Navigate(SearchPath(root, q), !in);  // typing more refines the same search without new history entries
+}
+
+void Pane::PruneMissing() {
+    Tab* t = T();
+    if (!IsSearch(t->path) || t->items.empty()) return;
+    size_t before = t->items.size();
+    SaveView();
+    t->items.erase(std::remove_if(t->items.begin(), t->items.end(), [](const Item& it) { return !Exists(Join(it.folder, it.name)); }),
+                   t->items.end());
+    if (t->items.size() != before) ShowItems(true);
 }
 
 void Pane::Navigate(const wstring& p, bool hist, const wstring& select) {
@@ -543,6 +588,8 @@ void Pane::Navigate(const wstring& p, bool hist, const wstring& select) {
     Tab* t = T();
     if (editing_) ListView_CancelEditLabel(list);
     if (IEq(path, t->path) && select.empty()) { Refresh(); return; }
+    StopSearch(t);
+    t->userSorted = false;
     if (hist && !IEq(path, t->path)) { t->back.push_back(t->path); t->fwd.clear(); }
     t->path = path;
     t->items.clear();
@@ -555,8 +602,10 @@ void Pane::Navigate(const wstring& p, bool hist, const wstring& select) {
     addr.SetPath(path);
     UpdateTabs();
     UpdateStar();
-    watcher_.Watch(hwnd, path);
+    if (IsSearch(path)) watcher_.Stop();
+    else watcher_.Watch(hwnd, path);
     if (IsFsPath(path)) TrackVisit(path);
+    if (this == ActivePane()) ToolbarSyncSearch();
 }
 
 void Pane::Refresh() {
@@ -587,6 +636,7 @@ void Pane::GoUp() {
     Tab* t = T();
     if (t->path.empty()) return;
     wstring from = t->path;
+    if (IsSearch(from)) { Navigate(SearchRoot(from)); return; }
     Navigate(Parent(from), true, IsRoot(from) ? from : FileName(from));
 }
 
@@ -612,7 +662,7 @@ void Pane::RebuildColumns() {
         HDITEMW hi{HDI_FORMAT};
         Header_GetItem(hdr, (int)i, &hi);
         hi.fmt &= ~(HDF_SORTUP | HDF_SORTDOWN);
-        if (cols_[i] == T()->sortCol) hi.fmt |= T()->asc ? HDF_SORTUP : HDF_SORTDOWN;
+        if (cols_[i] == ArrowCol()) hi.fmt |= T()->asc ? HDF_SORTUP : HDF_SORTDOWN;
         Header_SetItem(hdr, (int)i, &hi);
     }
     SendMessageW(list, WM_SETREDRAW, TRUE, 0);
@@ -628,7 +678,7 @@ void Pane::ShowItems(bool restore) {
             HDITEMW hi{HDI_FORMAT};
             Header_GetItem(hdr, (int)i, &hi);
             hi.fmt &= ~(HDF_SORTUP | HDF_SORTDOWN);
-            if (cols_[i] == t->sortCol) hi.fmt |= t->asc ? HDF_SORTUP : HDF_SORTDOWN;
+            if (cols_[i] == ArrowCol()) hi.fmt |= t->asc ? HDF_SORTUP : HDF_SORTDOWN;
             Header_SetItem(hdr, (int)i, &hi);
         }
     }
@@ -675,7 +725,28 @@ void Pane::UpdateStatus() {
     statusPending_ = false;
     Tab* t = T();
     statusR_.clear();
-    if (t->loading && t->items.empty()) statusL_ = L"Loading…";
+    if (IsSearch(t->path)) {
+        int n = ListView_GetSelectedCount(list);
+        int first = ListView_GetNextItem(list, -1, LVNI_SELECTED);
+        wstring count = std::to_wstring(t->items.size());
+        if (t->err) statusL_ = L"⚠  " + ErrText(t->err);
+        else if (n == 1 && first >= 0 && first < (int)t->items.size()) statusL_ = L"1 selected · " + ItemPath(first);
+        else if (n) statusL_ = std::to_wstring(n) + L" selected";
+        else statusL_ = t->loading ? L"Searching…  " + count + L" found" : count + (t->items.size() == 1 ? L" result" : L" results");
+        statusR_ = std::to_wstring(t->searchFolders) + L" folders searched";
+        if (!t->loading) {
+            wchar_t sec[32];
+            swprintf(sec, 32, L" in %.1f s", t->searchMs / 1000.0);
+            statusR_ += sec;
+        }
+        if (t->searchLimited) statusR_ += L" · stopped at 200,000 results";
+        RECT rc; GetClientRect(hwnd, &rc);
+        rc.bottom = S(kTabH) + S(kNavH) + S(kTitleH);
+        rc.top = rc.bottom - S(kTitleH);
+        InvalidateRect(hwnd, &rc, FALSE);  // the title shows the count too
+
+    }
+    else if (t->loading && t->items.empty()) statusL_ = L"Loading…";
     else if (t->err) statusL_ = L"⚠  " + ErrText(t->err);
     else {
         int dirs = 0;
@@ -702,14 +773,17 @@ void Pane::UpdateStatus() {
 wstring Pane::ItemPath(int i) {
     Tab* t = T();
     if (i < 0 || i >= (int)t->items.size()) return L"";
+    if (!t->items[i].folder.empty()) return Join(t->items[i].folder, t->items[i].name);  // search results
     if (!t->items[i].real.empty()) return t->items[i].real;  // Recycle Bin: the $R item on disk
     return t->path.empty() ? t->items[i].name : Join(t->path, t->items[i].name);
 }
 
 int Pane::Mode() {
     const wstring& p = T()->path;
-    return p.empty() ? 1 : IsVirtual(p) ? 2 : 0;
+    return p.empty() ? 1 : IsSearch(p) ? 3 : IsVirtual(p) ? 2 : 0;
 }
+
+int Pane::ArrowCol() { return Mode() == 3 && !T()->userSorted ? -1 : T()->sortCol; }
 
 // ---------- Recycle Bin view ----------
 void Pane::BinDelete(bool all) {
@@ -794,8 +868,8 @@ void Pane::Paste(const wstring& dir) {
     vector<wstring> files;
     bool move;
     if (ClipGetFiles(g_main, files, move)) {
-        if (dir.empty()) { MessageBeep(MB_ICONWARNING); return; }
-        if (IsVirtual(dir)) { FileOp(OP_RECYCLE, files); if (move) ClipClear(g_main); return; }  // paste into the bin = delete
+        if (dir.empty() || IsSearch(dir)) { MessageBeep(MB_ICONWARNING); return; }
+        if (IsBin(dir)) { FileOp(OP_RECYCLE, files); if (move) ClipClear(g_main); return; }  // paste into the bin = delete
         FileOp(move ? OP_MOVE : OP_COPY, files, dir);
         if (move) { ClipClear(g_main); ClearCutSet(); }
         return;
@@ -898,12 +972,12 @@ void Pane::ContextMenu(POINT pt, bool keyboard) {
         if (r == B_REFRESH) Refresh();
         return;
     }
-    bool drives = t->path.empty();
+    bool drives = t->path.empty(), search = IsSearch(t->path);
     vector<wstring> sel = Selected();
     bool oneDir = sel.size() == 1 && hit >= 0 && t->items[hit].isDir();
     bool canPaste = IsClipboardFormatAvailable(CF_HDROP);
     enum { M_OPEN = 1, M_OPENTAB, M_CUT, M_COPY, M_LINK, M_PATH, M_PASTE, M_RENAME, M_DELETE, M_NEWDIR, M_NEWFILE,
-           M_FAV, M_TERM, M_PROPS, M_REFRESH, M_HIDDEN, M_ZIP, M_7Z, M_7ZPW, M_EJECT, M_XHERE, M_XFOLDER };
+           M_FAV, M_TERM, M_PROPS, M_REFRESH, M_HIDDEN, M_ZIP, M_7Z, M_7ZPW, M_EJECT, M_XHERE, M_XFOLDER, M_LOCATE };
     bool archives = !sel.empty() && !drives;
     for (auto& s : sel) if (!IsArchive(s)) { archives = false; break; }
     bool ejectable = drives && oneDir && IsExternalDrive(sel[0]);
@@ -913,6 +987,7 @@ void Pane::ContextMenu(POINT pt, bool keyboard) {
         AppendMenuW(m, MF_STRING, M_OPEN, L"Open\tEnter");
         SetMenuDefaultItem(m, M_OPEN, FALSE);
         if (oneDir) AppendMenuW(m, MF_STRING, M_OPENTAB, L"Open in new tab\tCtrl+Enter");
+        if (search && sel.size() == 1) AppendMenuW(m, MF_STRING, M_LOCATE, L"Open file location");
         if (ejectable) AppendMenuW(m, MF_STRING, M_EJECT, L"Eject");
         AppendMenuW(m, MF_SEPARATOR, 0, nullptr);
         if (!drives) AppendMenuW(m, MF_STRING, M_CUT, L"Cut\tCtrl+X");
@@ -942,7 +1017,7 @@ void Pane::ContextMenu(POINT pt, bool keyboard) {
         AppendMenuW(m, MF_STRING, M_TERM, L"Open terminal here");
         AppendMenuW(m, MF_STRING, M_PROPS, L"Properties\tAlt+Enter");
     } else {
-        if (!drives) {
+        if (!drives && !search) {
             AppendMenuW(m, MF_STRING | (canPaste ? 0 : MF_GRAYED), M_PASTE, L"Paste\tCtrl+V");
             AppendMenuW(m, MF_SEPARATOR, 0, nullptr);
             AppendMenuW(m, MF_STRING, M_NEWDIR, L"New folder\tCtrl+Shift+N");
@@ -950,13 +1025,13 @@ void Pane::ContextMenu(POINT pt, bool keyboard) {
             AppendMenuW(m, MF_SEPARATOR, 0, nullptr);
         }
         AppendMenuW(m, MF_STRING, M_REFRESH, L"Refresh\tF5");
-        if (!drives) {
+        if (!drives && !search) {
             AppendMenuW(m, MF_STRING, M_PATH, L"Copy path");
             AppendMenuW(m, MF_STRING, M_FAV, IsFavourite(t->path) ? L"Remove from Favourites\tCtrl+D" : L"Add to Favourites\tCtrl+D");
             AppendMenuW(m, MF_STRING, M_TERM, L"Open terminal here");
         }
         AppendMenuW(m, MF_STRING | (g_showHidden ? MF_CHECKED : 0), M_HIDDEN, L"Show hidden files\tCtrl+H");
-        if (!drives) AppendMenuW(m, MF_STRING, M_PROPS, L"Properties");
+        if (!drives && !search) AppendMenuW(m, MF_STRING, M_PROPS, L"Properties");
     }
     int r = TrackPopupMenu(m, TPM_RETURNCMD | TPM_RIGHTBUTTON, pt.x, pt.y, 0, hwnd, nullptr);
     DestroyMenu(m);
@@ -974,7 +1049,8 @@ void Pane::ContextMenu(POINT pt, bool keyboard) {
     case M_NEWDIR: NewFolder(false); break;
     case M_NEWFILE: NewFolder(true); break;
     case M_FAV: ToggleFavourite(target); UpdateStar(); break;
-    case M_TERM: OpenTerminal(oneDir || sel.empty() ? target : t->path); break;
+    case M_TERM: OpenTerminal(oneDir ? sel[0] : search && !sel.empty() ? Parent(sel[0]) : t->path); break;
+    case M_LOCATE: Navigate(Parent(sel[0]), true, FileName(sel[0])); break;
     case M_PROPS: ShowProperties(sel.empty() ? t->path : sel[0]); break;
     case M_REFRESH: Refresh(); break;
     case M_HIDDEN: ToggleHidden(); break;
@@ -1134,7 +1210,8 @@ void Pane::OnNotify(NMHDR* nm, LRESULT& res) {
         return;
     case LVN_COLUMNCLICK: {
         int c = cols_[((NMLISTVIEW*)nm)->iSubItem];
-        if (t->sortCol == c) t->asc = !t->asc; else { t->sortCol = c; t->asc = true; }
+        if (t->sortCol == c && ArrowCol() == c) t->asc = !t->asc; else { t->sortCol = c; t->asc = true; }
+        t->userSorted = true;
         SaveView();
         SortItems(t->items, t->sortCol, t->asc);
         t->top = -1;
@@ -1149,7 +1226,7 @@ void Pane::OnNotify(NMHDR* nm, LRESULT& res) {
     }
     case LVN_BEGINLABELEDITW: {
         auto d = (NMLVDISPINFOW*)nm;
-        if (!IsFsPath(t->path) || d->item.iItem < 0 || d->item.iItem >= (int)t->items.size()) { res = TRUE; return; }
+        if (!(IsFsPath(t->path) || IsSearch(t->path)) || d->item.iItem < 0 || d->item.iItem >= (int)t->items.size()) { res = TRUE; return; }
         editing_ = true;
         PostMessageW(hwnd, WM_APP_SELNAME, d->item.iItem, 0);
         return;
@@ -1167,7 +1244,8 @@ void Pane::OnNotify(NMHDR* nm, LRESULT& res) {
             if (!nn.empty() && nn != it.name) {
                 if (nn.find_first_of(L"\\/:*?\"<>|") != wstring::npos) {
                     MessageBoxW(g_main, L"A file name can't contain any of these characters:\n\\ / : * ? \" < > |", APP_NAME, MB_ICONWARNING);
-                } else if (MoveFileW(Join(t->path, it.name).c_str(), Join(t->path, nn).c_str())) {
+                } else if (MoveFileW(Join(it.folder.empty() ? t->path : it.folder, it.name).c_str(),
+                                     Join(it.folder.empty() ? t->path : it.folder, nn).c_str())) {
                     it.name = nn;
                     t->focusName = nn;
                     t->selNames = {nn};
@@ -1192,12 +1270,16 @@ void Pane::Command(PaneCmd c) {
     case PC_PASTE: Paste(Path()); break;
     case PC_RENAME: {
         int i = ListView_GetNextItem(list, -1, LVNI_SELECTED);
-        if (i >= 0 && IsFsPath(Path())) { SetFocus(list); ListView_EditLabel(list, i); return; }
+        if (i >= 0 && (IsFsPath(Path()) || InSearch())) { SetFocus(list); ListView_EditLabel(list, i); return; }
         MessageBeep(MB_ICONWARNING);
         break;
     }
     case PC_DELETE: Delete(GetKeyState(VK_SHIFT) < 0); break;
-    case PC_TERMINAL: if (IsFsPath(Path())) OpenTerminal(Path()); break;
+    case PC_TERMINAL: {
+        wstring d = InSearch() ? SearchRoot(Path()) : Path();
+        if (IsFsPath(d)) OpenTerminal(d);
+        break;
+    }
     }
     FocusList();
 }
@@ -1226,6 +1308,10 @@ LRESULT Pane::Proc(UINT m, WPARAM w, LPARAM l) {
         SelectObject(dc, g_fontMono);
         SetTextColor(dc, th.faint);
         wstring items = std::to_wstring(T()->items.size()) + L" items";
+        if (InSearch()) {
+            wstring root = SearchRoot(Path());
+            items = std::to_wstring(T()->items.size()) + (T()->loading ? L" found so far" : T()->items.size() == 1 ? L" result" : L" results") + L" in " + (root.empty() ? L"all drives" : DisplayName(root));
+        }
         DrawTextW(dc, items.c_str(), -1, &cnt, DT_SINGLELINE | DT_VCENTER);
         RECT st = rc; st.top = st.bottom - S(kStatusH);
         ln = st; ln.bottom = ln.top + 1;
@@ -1284,6 +1370,35 @@ LRESULT Pane::Proc(UINT m, WPARAM w, LPARAM l) {
             t->loading = false;
             if (t->path.empty()) DriveInfoAsync(hwnd, t->items);
             if (isCur) ShowItems(true);
+            break;
+        }
+        return 0;
+    }
+    case WM_APP_SEARCH: {
+        std::unique_ptr<SearchChunk> r((SearchChunk*)l);
+        for (auto& tp : tabs_) {
+            Tab* t = tp.get();
+            if (t->id != r->tabId) continue;
+            if (r->gen != t->gen) break;
+            bool isCur = t == T();
+            if (isCur && !r->items.empty() && t->userSorted) SaveView();
+            for (auto& it : r->items) t->items.push_back(std::move(it));
+            t->searchFolders = r->folders;
+            if (r->err) t->err = r->err;
+            if (r->limited) t->searchLimited = true;
+            if (r->done) { t->loading = false; t->searchMs = r->ms; t->cancel.reset(); }
+            if (!isCur) break;
+            if (!r->items.empty() && !editing_) {
+                if (t->userSorted) {
+                    SortItems(t->items, t->sortCol, t->asc);
+                    ShowItems(true);
+                } else {
+                    bool first = ListView_GetItemCount(list) == 0;
+                    ListView_SetItemCountEx(list, t->items.size(), LVSICF_NOINVALIDATEALL | LVSICF_NOSCROLL);
+                    if (first) ListView_SetItemState(list, 0, LVIS_FOCUSED, LVIS_FOCUSED);
+                }
+            }
+            UpdateStatus();
             break;
         }
         return 0;

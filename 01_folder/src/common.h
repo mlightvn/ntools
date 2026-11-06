@@ -44,6 +44,7 @@ enum {
     WM_APP_EJECTED,              // lParam = eject result (drives.cpp)
     WM_APP_FOCUSLIST,            // focus the active pane's list (posted, after a control finishes its click)
     WM_APP_MESSAGE,              // lParam = wstring* to show in a message box (from worker threads)
+    WM_APP_SEARCH,               // lParam = SearchChunk* (search.cpp -> pane)
 };
 
 extern "C" void WINAPI SHUpdateRecycleBinIcon(void);  // shell32 export, not declared in MinGW headers
@@ -59,10 +60,23 @@ inline wstring Lower(wstring s) { if (!s.empty()) CharLowerBuffW(&s[0], (DWORD)s
 inline bool IEq(const wstring& a, const wstring& b) { return CompareStringOrdinal(a.c_str(), (int)a.size(), b.c_str(), (int)b.size(), TRUE) == CSTR_EQUAL; }
 inline bool IStarts(const wstring& s, const wstring& p) { return s.size() >= p.size() && CompareStringOrdinal(s.c_str(), (int)p.size(), p.c_str(), (int)p.size(), TRUE) == CSTR_EQUAL; }
 inline bool IsRoot(const wstring& p) { return p.size() == 3 && p[1] == L':' && p[2] == L'\\'; }
-// Virtual locations: "" = This PC, "::bin" = Recycle Bin (all drives)
+// Virtual locations: "" = This PC, "::bin" = Recycle Bin (all drives),
+// "::search<TAB>root<TAB>query" = search results (root "" = all drives)
 #define BIN_PATH L"::bin"
+#define SEARCH_PREFIX L"::search\t"
 inline bool IsVirtual(const wstring& p) { return p.size() > 1 && p[0] == L':' && p[1] == L':'; }
 inline bool IsFsPath(const wstring& p) { return !p.empty() && !IsVirtual(p); }  // a real folder
+inline bool IsBin(const wstring& p) { return p == BIN_PATH; }
+inline bool IsSearch(const wstring& p) { return p.rfind(SEARCH_PREFIX, 0) == 0; }
+inline wstring SearchPath(const wstring& root, const wstring& query) { return SEARCH_PREFIX + root + L"\t" + query; }
+inline wstring SearchRoot(const wstring& p) {
+    size_t a = wcslen(SEARCH_PREFIX), b = p.find(L'\t', a);
+    return IsSearch(p) && b != wstring::npos ? p.substr(a, b - a) : L"";
+}
+inline wstring SearchQuery(const wstring& p) {
+    size_t b = p.find(L'\t', wcslen(SEARCH_PREFIX));
+    return IsSearch(p) && b != wstring::npos ? p.substr(b + 1) : L"";
+}
 inline wstring Join(const wstring& dir, const wstring& name) {
     if (dir.empty()) return name;
     return dir.back() == L'\\' ? dir + name : dir + L"\\" + name;
@@ -83,6 +97,7 @@ inline wstring FileName(const wstring& p) {
 }
 inline wstring DisplayName(const wstring& path) {  // tab titles, tooltips
     if (path.empty()) return L"This PC";
+    if (IsSearch(path)) return L"“" + SearchQuery(path) + L"”";
     if (IsVirtual(path)) return L"Recycle Bin";
     return FileName(path);
 }
