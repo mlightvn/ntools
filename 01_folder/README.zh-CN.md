@@ -19,15 +19,22 @@ build.bat
 ## 界面
 
 ```
-┌ sidebar ─────┐┌ pane 1 ──────────────────┐┌ pane 2 ─────────── ┐
-│ ★ Favourites ││ [tab] [tab] [+]          ││ ...                │
-│ ⚡ Quick acc. ││ ← → ↑ ⟳          [📁+][☆] ││                    │
-│ Drives       ││ This PC › D: › Media ›  ▾││                    │
-│              ││ Name   Type   Date  Size ││                    │
-└──────────────┘└──────────────────────────┘└────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ [New folder] ✂ ⧉ 📋 ✎ 🗑  [Terminal]                 ▭ ▭▭ ▭▭▭  🎨  [Default ▾] │  toolbar
+├ FAVOURITES ───┬ [tab] [tab] [+]       L / ACTIVE ┬ [tab] [+]                 R ┤
+│ QUICK ACCESS  │ ← → ↑  This PC › D: › Media ›  ⟳ │ ...                         │
+│ DRIVES        │ Media  12 items                ☆ │                             │
+│               │ Name        Type    Date    Size │                             │
+│               │ 3 items          1 folder · 2 files                           │
+├───────────────┴──────────────────────────────────┴─────────────────────────────┤
+│ Tab Switch pane  Ctrl C Copy  Ctrl X Cut ...                  ● Hidden files off │  status bar
+└──────────────────────────────────────────────────────────────────────────────┘
 ```
 
-- 1、2 或 3 个窗格（pane）：点击工具栏上的 **Layout** 按钮（位于 New folder 左侧），或按 Ctrl+1 / 2 / 3。拖动窗格之间的分隔条可调整宽度。每个窗格有自己的标签页，新标签页打开 **This PC**。
+- **工具栏**（始终显示）：New folder、Cut、Copy、Paste、Rename、Delete（Shift+点击 = 永久删除）、Terminal（在当前文件夹打开 Windows Terminal 或 cmd）。按钮作用于当前活动窗格。右侧依次是 1 / 2 / 3 窗格布局、主题选择和配置文件菜单。
+- **主题**：点击工具栏上的调色板按钮。**Void**（深海军蓝，默认）、**Flux**（深紫色，彩色文件图块并显示扩展名标签）、**Mono**（黑色，绿色强调，全部使用等宽字体）和 **Light**（使用 Windows 图标）。主题也会改变标题栏、菜单和滚动条的颜色。选择保存在 `nexplorer.ini`（`[Window] theme=`）。
+- **状态栏**（底部）：显示常用快捷键；点击 **Hidden files on/off** 可显示/隐藏隐藏文件（与 Ctrl+H 相同）。
+- 1、2 或 3 个窗格（pane）：点击工具栏上的布局按钮，或按 Ctrl+1 / 2 / 3。拖动窗格之间的分隔条可调整宽度。每个窗格有自己的标签页，新标签页打开 **This PC**。活动窗格显示 `ACTIVE`，当前标签上有一条强调色线。
 - **标签页**：点击标签上的 `×` 关闭（或 Ctrl+W、鼠标中键）。右键标签页可选 Close tab、Close other tabs、Close tabs to the right、Duplicate tab、New tab。双击标签栏空白处可新建标签页。
 - **地址栏**：
   - 点击某一段即可跳转；点击 `›` 选择子文件夹；`▾` 打开历史记录。
@@ -41,7 +48,7 @@ build.bat
   - Del 或 Shift+Del：立即永久删除（会要求确认）。
   - 右键：Restore（还原到原位置；若同名文件已存在则两者都保留）、Delete permanently、Empty Recycle Bin。
   - 把文件拖到回收站（侧边栏 / 地址栏）即放入回收站。
-- **配置文件 Profile**（侧边栏顶部的按钮，或 Ctrl+P）：
+- **配置文件 Profile**（工具栏最右侧的按钮，或 Ctrl+P）：
   - 每个配置文件保存：窗格数量、各窗格宽度、当前活动窗格，以及每个窗格的标签页（顺序、路径、选中的标签页）。
   - 布局**只有在你按 Save（Ctrl+S）时才会保存**。启动时打开最近使用的配置文件及其已保存的布局；从未保存过的配置文件，每个窗格都显示 This PC。
   - 配置文件名旁（以及标题栏中）的 ● 表示当前布局与已保存的不同。在有未保存更改时切换配置文件，会询问是否保存。
@@ -131,6 +138,7 @@ Ctrl+C 会同时写入多种格式，因此粘贴到不同位置会得到合适�
 - [x] 加密 7z（7zAES、隐藏文件名；错误密码被拒绝）、对加密压缩包执行 Extract to 文件夹（7-Zip 询问密码）
 - [x] 配置文件：默认 This PC、Ctrl+S 保存后重新打开恢复布局、Save as / Rename / Delete、切换配置文件、有未保存更改时提示
 - [x] Shift + 滚轮水平滚动；普通滚轮仍为垂直滚动；倾斜滚轮 / 触控板水平滚动
+- [x] 主题 Void / Flux / Mono / Light，运行时切换；全局工具栏（New folder、Cut、Copy、Paste、Rename、Delete、Terminal）；状态栏
 
 尚未完成（当前限制）：
 

@@ -19,15 +19,22 @@ build.bat
 ## Giao diện
 
 ```
-┌ sidebar ─────┐┌ pane 1 ──────────────────┐┌ pane 2 ─────────── ┐
-│ ★ Favourites ││ [tab] [tab] [+]          ││ ...                │
-│ ⚡ Quick acc. ││ ← → ↑ ⟳          [📁+][☆] ││                    │
-│ Drives       ││ This PC › D: › Media ›  ▾││                    │
-│              ││ Name   Type   Date  Size ││                    │
-└──────────────┘└──────────────────────────┘└────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ [New folder] ✂ ⧉ 📋 ✎ 🗑  [Terminal]                 ▭ ▭▭ ▭▭▭  🎨  [Default ▾] │  toolbar
+├ FAVOURITES ───┬ [tab] [tab] [+]       L / ACTIVE ┬ [tab] [+]                 R ┤
+│ QUICK ACCESS  │ ← → ↑  This PC › D: › Media ›  ⟳ │ ...                         │
+│ DRIVES        │ Media  12 items                ☆ │                             │
+│               │ Name        Type    Date    Size │                             │
+│               │ 3 items          1 folder · 2 files                           │
+├───────────────┴──────────────────────────────────┴─────────────────────────────┤
+│ Tab Switch pane  Ctrl C Copy  Ctrl X Cut ...                  ● Hidden files off │  status bar
+└──────────────────────────────────────────────────────────────────────────────┘
 ```
 
-- Có 1, 2 hoặc 3 pane: bấm nút **Layout** trên toolbar (bên trái nút New folder) hoặc Ctrl+1 / 2 / 3. Kéo thanh chia giữa các pane để đổi độ rộng. Mỗi pane có tab riêng, tab mới mở ở **This PC**.
+- **Toolbar** (luôn hiện): New folder, Cut, Copy, Paste, Rename, Delete (Shift+click = xóa vĩnh viễn), Terminal (mở Windows Terminal, hoặc cmd, tại folder hiện tại). Các nút tác động lên pane đang active. Bên phải: chọn 1 / 2 / 3 pane, chọn theme và menu profile.
+- **Theme**: bấm nút bảng màu trên toolbar. **Void** (xanh navy tối, mặc định), **Flux** (tím tối, icon file dạng ô màu kèm nhãn đuôi file), **Mono** (đen, nhấn xanh lá, font monospace toàn bộ) và **Light** (icon của Windows). Theme đổi luôn màu thanh tiêu đề, menu và thanh cuộn. Lựa chọn được lưu trong `nexplorer.ini` (`[Window] theme=`).
+- **Status bar** (dưới cùng): nhắc phím tắt; bấm **Hidden files on/off** để hiện/ẩn file ẩn (giống Ctrl+H).
+- Có 1, 2 hoặc 3 pane: bấm nút layout trên toolbar hoặc Ctrl+1 / 2 / 3. Kéo thanh chia giữa các pane để đổi độ rộng. Mỗi pane có tab riêng, tab mới mở ở **This PC**. Pane đang active hiện chữ `ACTIVE` và vạch màu trên tab hiện tại.
 - **Tab**: bấm `×` trên tab để đóng (hoặc Ctrl+W, middle-click). Chuột phải lên tab: Close tab, Close other tabs, Close tabs to the right, Duplicate tab, New tab. Double-click vùng trống của thanh tab để mở tab mới.
 - **Address bar**:
   - Click một đoạn để đi tới đó; click `›` để chọn folder con; `▾` mở lịch sử.
@@ -41,7 +48,7 @@ build.bat
   - Del hoặc Shift+Del: xóa vĩnh viễn ngay (có hỏi xác nhận).
   - Chuột phải: Restore (trả về đúng chỗ cũ; trùng tên thì giữ cả hai), Delete permanently, Empty Recycle Bin.
   - Kéo file thả lên Recycle Bin (sidebar / address bar) = đưa vào thùng rác.
-- **Profile** (nút ở đầu sidebar, hoặc Ctrl+P):
+- **Profile** (nút ở cuối bên phải toolbar, hoặc Ctrl+P):
   - Mỗi profile lưu: số pane, độ rộng các pane, pane đang active, và trong từng pane là các tab (thứ tự, path, tab đang chọn).
   - Layout **chỉ được lưu khi bạn bấm Save (Ctrl+S)**. Mở app sẽ vào profile dùng gần nhất, với layout đã lưu; profile chưa lưu lần nào thì mọi pane ở This PC.
   - Dấu ● cạnh tên profile (và trên thanh tiêu đề) nghĩa là layout hiện tại khác bản đã lưu. Khi chuyển profile mà còn thay đổi chưa lưu, app sẽ hỏi có lưu không.
@@ -131,6 +138,7 @@ Ctrl+C ghi cùng lúc nhiều định dạng, nên mỗi nơi dán sẽ ra kết
 - [x] 7z có mật khẩu (7zAES, ẩn tên file; mở sai mật khẩu bị từ chối), Extract to folder riêng với file có mật khẩu (7-Zip hỏi mật khẩu)
 - [x] Profile: mặc định This PC, Ctrl+S lưu rồi mở lại app ra đúng layout, Save as / Rename / Delete, chuyển profile, hỏi khi còn thay đổi chưa lưu
 - [x] Shift + lăn chuột cuộn ngang; lăn thường vẫn cuộn dọc; lăn nghiêng / touchpad cuộn ngang
+- [x] Theme Void / Flux / Mono / Light, đổi theme khi đang chạy; toolbar chung (New folder, Cut, Copy, Paste, Rename, Delete, Terminal); status bar
 
 Chưa làm (giới hạn hiện tại):
 

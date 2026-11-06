@@ -2,11 +2,11 @@
 #include "pane.h"
 #include "app.h"
 #include "clip.h"
+#include "theme.h"
 #include <thread>
 
 struct Suggest { UINT req; vector<wstring> items; };
 
-static const COLORREF kHot = RGB(229, 241, 251), kHotBorder = RGB(204, 228, 247), kDrop = RGB(204, 232, 255);
 
 void AddrBar::Create(HWND parent, Pane* owner) {
     static bool reg = false;
@@ -97,35 +97,27 @@ void AddrBar::Layout(HDC dc) {
 }
 
 void AddrBar::Paint(HDC dc) {
+    const Theme& t = *g_theme;
     RECT rc; GetClientRect(hwnd, &rc);
-    FillRect(dc, &rc, GetSysColorBrush(COLOR_WINDOW));
-    HBRUSH frame = CreateSolidBrush(err_ ? RGB(220, 50, 50) : GetFocus() == edit_ && edit_ ? GetSysColor(COLOR_HIGHLIGHT) : RGB(200, 200, 200));
-    FrameRect(dc, &rc, frame);
-    DeleteObject(frame);
+    Fill(dc, rc, t.pane);
+    COLORREF frame = err_ ? RGB(220, 70, 70) : edit_ && GetFocus() == edit_ ? t.accent : t.border;
+    RoundFill(dc, rc, S(8), t.input, frame);
     if (edit_) return;
     Layout(dc);
     SetBkMode(dc, TRANSPARENT);
-    HBRUSH hot = CreateSolidBrush(kHot), drop = CreateSolidBrush(kDrop);
     for (int i = 0; i < (int)segs_.size(); i++) {
         auto& s = segs_[i];
-        if (i == dropHi_) FillRect(dc, &s.r, drop);
-        else if (i == hot_ && hotArrow_ == 0) FillRect(dc, &s.r, hot);
-        if (i == hot_ && hotArrow_ == 1) FillRect(dc, &s.arrow, hot);
-        SelectObject(dc, g_font);
-        SetTextColor(dc, GetSysColor(COLOR_WINDOWTEXT));
+        bool last = i + 1 == (int)segs_.size();
+        if (i == dropHi_) RoundFill(dc, s.r, S(6), t.sel, t.selBorder);
+        else if (i == hot_ && hotArrow_ == 0) RoundFill(dc, s.r, S(6), t.hot, t.hot);
+        if (i == hot_ && hotArrow_ == 1) RoundFill(dc, s.arrow, S(6), t.hot, t.hot);
+        SelectObject(dc, last ? g_fontBold : g_font);
+        SetTextColor(dc, last || i == hot_ ? t.text : t.dim);
         DrawTextW(dc, s.text.c_str(), -1, &s.r, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
-        if (!s.more && !IsVirtual(s.path)) {  // virtual locations have no sub-folders
-            SelectObject(dc, g_iconFont);
-            SetTextColor(dc, RGB(110, 110, 110));
-            DrawTextW(dc, L"\uE76C", -1, &s.arrow, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-        }
+        if (!s.more && !IsVirtual(s.path)) Glyph(dc, L"", s.arrow, t.faint, g_iconFontSmall);  // virtual locations have no sub-folders
     }
-    if (hot_ == -2) FillRect(dc, &drop_, hot);
-    SelectObject(dc, g_iconFont);
-    SetTextColor(dc, RGB(90, 90, 90));
-    DrawTextW(dc, L"\uE70D", -1, &drop_, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-    DeleteObject(hot);
-    DeleteObject(drop);
+    if (hot_ == -2) RoundFill(dc, drop_, S(6), t.hot, t.hot);
+    Glyph(dc, L"", drop_, t.dim, g_iconFontSmall);
 }
 
 int AddrBar::HitSeg(POINT pt, bool* arrow) {
@@ -262,6 +254,7 @@ void AddrBar::ShowSuggest(const vector<wstring>& v) {
                                WS_POPUP | WS_BORDER | WS_VSCROLL | LBS_NOTIFY | LBS_NOINTEGRALHEIGHT,
                                0, 0, 10, 10, hwnd, nullptr, g_inst, nullptr);
         SendMessageW(sug_, WM_SETFONT, (WPARAM)g_font, FALSE);
+        ThemeWindow(sug_);
         SetWindowSubclass(sug_, SugProc, 2, (DWORD_PTR)this);
     }
     SendMessageW(sug_, WM_SETREDRAW, FALSE, 0);
@@ -435,8 +428,10 @@ LRESULT CALLBACK AddrBar::Proc(HWND h, UINT m, WPARAM w, LPARAM l) {
         }
         return 0;
     case WM_CTLCOLOREDIT:
-        SetBkColor((HDC)w, GetSysColor(COLOR_WINDOW));
-        return (LRESULT)GetSysColorBrush(COLOR_WINDOW);
+    case WM_CTLCOLORLISTBOX:
+        SetTextColor((HDC)w, g_theme->text);
+        SetBkColor((HDC)w, g_theme->input);
+        return (LRESULT)ThemeBrush(g_theme->input);
     case WM_DESTROY:
         self->HideSuggest();
         return 0;

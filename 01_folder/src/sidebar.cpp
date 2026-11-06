@@ -1,6 +1,7 @@
 // Sidebar: Favourites (pinned), Quick access (known + frequently used folders), Drives.
 #include "app.h"
 #include "pane.h"
+#include "theme.h"
 #include <knownfolders.h>
 #include <cmath>
 #include <ctime>
@@ -83,19 +84,19 @@ void Rebuild() {
     TreeView_DeleteAllItems(g_tree);
     g_nodes.clear();
     const int none = 0x7FFF;
-    HTREEITEM gf = Add(TVI_ROOT, L"★  Favourites", none, {K_GFAV}, true);
+    HTREEITEM gf = Add(TVI_ROOT, L"FAVOURITES", none, {K_GFAV}, true);
     for (size_t i = 0; i < g_favs.size(); i++) {
         Node n{K_FAV, g_favs[i].path, (int)i};
         Add(gf, g_favs[i].name.empty() ? FileName(g_favs[i].path) : g_favs[i].name, FolderIcon(), n);
     }
-    HTREEITEM gq = Add(TVI_ROOT, L"⚡  Quick access", none, {K_GQUICK}, true);
+    HTREEITEM gq = Add(TVI_ROOT, L"QUICK ACCESS", none, {K_GQUICK}, true);
     for (auto& k : g_known) Add(gq, k.first, PathIcon(k.second), {K_KNOWN, k.second});
     SHSTOCKICONINFO bin{sizeof(bin)};
     SHGetStockIconInfo(SIID_RECYCLER, SHGSI_SYSICONINDEX, &bin);
     Add(gq, L"Recycle Bin", bin.iSysImageIndex, {K_KNOWN, BIN_PATH});
     g_lastTop = TopRecent(8);
     for (auto& p : g_lastTop) Add(gq, FileName(p), FolderIcon(), {K_RECENT, p});
-    HTREEITEM gd = Add(TVI_ROOT, L"Drives", none, {K_GDRIVES}, true);
+    HTREEITEM gd = Add(TVI_ROOT, L"DRIVES", none, {K_GDRIVES}, true);
     vector<Item> drives = ListDrives();
     for (auto& d : drives) {
         Item it = d;
@@ -284,12 +285,9 @@ LRESULT CALLBACK TreeProc(HWND h, UINT m, WPARAM w, LPARAM l, UINT_PTR, DWORD_PT
 void SidebarCreate(HWND parent) {
     g_tree = CreateWindowExW(0, WC_TREEVIEWW, L"", WS_CHILD | WS_VISIBLE | WS_TABSTOP | TVS_HASBUTTONS | TVS_FULLROWSELECT |
                              TVS_EDITLABELS | TVS_NOHSCROLL | TVS_TRACKSELECT, 0, 0, 10, 10, parent, nullptr, g_inst, nullptr);
-    SetWindowTheme(g_tree, L"Explorer", nullptr);
     TreeView_SetExtendedStyle(g_tree, TVS_EX_DOUBLEBUFFER, TVS_EX_DOUBLEBUFFER);
     TreeView_SetImageList(g_tree, SysImageList(), TVSIL_NORMAL);
-    TreeView_SetItemHeight(g_tree, S(26));
-    TreeView_SetIndent(g_tree, S(19));
-    SendMessageW(g_tree, WM_SETFONT, (WPARAM)g_font, FALSE);
+    SidebarApplyTheme();
     SetWindowSubclass(g_tree, TreeProc, 1, 0);
 
     const KNOWNFOLDERID* ids[] = {&FOLDERID_Desktop, &FOLDERID_Downloads, &FOLDERID_Documents, &FOLDERID_Pictures, &FOLDERID_Videos, &FOLDERID_Music};
@@ -317,6 +315,18 @@ void SidebarCreate(HWND parent) {
 }
 
 HWND SidebarHwnd() { return g_tree; }
+
+void SidebarApplyTheme() {
+    const Theme& t = *g_theme;
+    ThemeWindow(g_tree);
+    TreeView_SetBkColor(g_tree, t.sidebar);
+    TreeView_SetTextColor(g_tree, t.text);
+    TreeView_SetLineColor(g_tree, t.border);
+    SendMessageW(g_tree, WM_SETFONT, (WPARAM)g_font, FALSE);
+    TreeView_SetItemHeight(g_tree, S(t.monoUI ? 24 : 28));
+    TreeView_SetIndent(g_tree, S(16));
+    InvalidateRect(g_tree, nullptr, TRUE);
+}
 void SidebarRefreshDrives() { Rebuild(); }
 
 void SidebarSave() {
@@ -448,10 +458,17 @@ void SidebarOnNotify(NMHDR* nm, LRESULT& res) {
         size_t i = cd->nmcd.lItemlParam;
         if (i >= g_nodes.size()) return;
         if (cd->nmcd.dwDrawStage == CDDS_ITEMPREPAINT) {
-            if (g_nodes[i].kind <= K_GDRIVES) cd->clrText = RGB(110, 110, 110);
-            else if (g_missing.count(Lower(g_nodes[i].path))) cd->clrText = RGB(170, 170, 170);
+            const Theme& t = *g_theme;
+            res = CDRF_DODEFAULT;
+            if (g_nodes[i].kind <= K_GDRIVES) {  // group headers: small caps-style labels
+                cd->clrText = t.faint;
+                cd->clrTextBk = t.sidebar;
+                SelectObject(cd->nmcd.hdc, g_fontSmall);
+                res = CDRF_NEWFONT;
+            } else if (g_missing.count(Lower(g_nodes[i].path))) cd->clrText = t.faint;
+            else if (!(cd->nmcd.uItemState & (CDIS_SELECTED | CDIS_HOT))) cd->clrText = t.text;
             bool arrows = g_nodes[i].kind == K_FAV && g_favs.size() > 1 && (cd->nmcd.uItemState & CDIS_HOT);
-            res = arrows ? CDRF_NOTIFYPOSTPAINT : CDRF_DODEFAULT;
+            if (arrows) res |= CDRF_NOTIFYPOSTPAINT;
         } else if (cd->nmcd.dwDrawStage == CDDS_ITEMPOSTPAINT) {  // ▲ ▼ on the hovered favourite
             RECT up, down;
             ArrowRects(cd->nmcd.rc, up, down);
@@ -459,9 +476,9 @@ void SidebarOnNotify(NMHDR* nm, LRESULT& res) {
             HGDIOBJ of = SelectObject(dc, g_iconFont);
             SetBkMode(dc, TRANSPARENT);
             int f = g_nodes[i].fav;
-            SetTextColor(dc, f > 0 ? RGB(60, 60, 60) : RGB(200, 200, 200));
+            SetTextColor(dc, f > 0 ? g_theme->text : g_theme->faint);
             DrawTextW(dc, L"", -1, &up, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-            SetTextColor(dc, f + 1 < (int)g_favs.size() ? RGB(60, 60, 60) : RGB(200, 200, 200));
+            SetTextColor(dc, f + 1 < (int)g_favs.size() ? g_theme->text : g_theme->faint);
             DrawTextW(dc, L"", -1, &down, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
             SelectObject(dc, of);
         }

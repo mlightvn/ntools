@@ -16,7 +16,6 @@ vector<wstring> g_names;
 wstring g_cur;
 wstring g_saved;  // serialized layout of the current profile as last saved
 bool g_dirty = false;
-HWND g_btn = nullptr;
 
 wstring Sec(const wstring& name) { return L"Profile." + name; }
 wstring Key(const wchar_t* k, int i) { return k + std::to_wstring(i); }
@@ -125,7 +124,7 @@ void UpdateUi() {
     g_dirty = ToStr(Capture()) != g_saved;
     wstring title = wstring(APP_NAME) + L"  —  " + g_cur + (g_dirty ? L"  ●" : L"");
     SetWindowTextW(g_main, title.c_str());
-    InvalidateRect(g_btn, nullptr, FALSE);
+    ToolbarRefresh();
 }
 
 int Find(const wstring& name) {
@@ -230,53 +229,13 @@ void ProfileSave() {
 }
 
 void ProfileTick() {
-    if (!g_btn || !IsWindowVisible(g_main)) return;
+    if (!IsWindowVisible(g_main)) return;
     if ((ToStr(Capture()) != g_saved) != g_dirty) UpdateUi();
 }
 
-void ProfileButtonCreate(HWND parent) {
-    g_btn = CreateWindowW(L"BUTTON", L"", WS_CHILD | WS_VISIBLE | BS_OWNERDRAW, 0, 0, 10, 10, parent, nullptr, g_inst, nullptr);
-    HWND tip = CreateWindowExW(WS_EX_TOPMOST, TOOLTIPS_CLASSW, nullptr, WS_POPUP | TTS_ALWAYSTIP, 0, 0, 0, 0, parent, nullptr, g_inst, nullptr);
-    TTTOOLINFOW ti{sizeof(ti), TTF_IDISHWND | TTF_SUBCLASS, parent, (UINT_PTR)g_btn};
-    ti.lpszText = (LPWSTR)L"Profile (Ctrl+P) — Ctrl+S saves the current panes and tabs";
-    SendMessageW(tip, TTM_ADDTOOLW, 0, (LPARAM)&ti);
-}
+wstring ProfileLabel() { return g_cur + (g_dirty ? L"  ●" : L""); }
 
-HWND ProfileButton() { return g_btn; }
-
-void ProfileDrawButton(DRAWITEMSTRUCT* d) {
-    RECT r = d->rcItem;
-    HDC dc = d->hDC;
-    HBRUSH bg = CreateSolidBrush(d->itemState & ODS_SELECTED ? RGB(204, 228, 247) : RGB(243, 243, 243));
-    HBRUSH fr = CreateSolidBrush(RGB(222, 222, 222));
-    FillRect(dc, &r, bg);
-    FrameRect(dc, &r, fr);
-    DeleteObject(bg);
-    DeleteObject(fr);
-    SetBkMode(dc, TRANSPARENT);
-    RECT ic{r.left + S(6), r.top, r.left + S(30), r.bottom};
-    SelectObject(dc, g_iconFont);
-    SetTextColor(dc, RGB(0, 95, 184));
-    DrawTextW(dc, L"", -1, &ic, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-    RECT tx{r.left + S(34), r.top, r.right - S(26), r.bottom};
-    SelectObject(dc, g_fontBold);
-    SetTextColor(dc, RGB(30, 30, 30));
-    DrawTextW(dc, g_cur.c_str(), -1, &tx, DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS | DT_NOPREFIX);
-    if (g_dirty) {  // unsaved marker right after the name
-        RECT m = tx;
-        DrawTextW(dc, g_cur.c_str(), -1, &m, DT_SINGLELINE | DT_CALCRECT | DT_NOPREFIX);
-        RECT dot{std::min(m.right, tx.right) + S(6), r.top, tx.right + S(14), r.bottom};
-        SelectObject(dc, g_font);
-        SetTextColor(dc, RGB(230, 120, 0));
-        DrawTextW(dc, L"●", -1, &dot, DT_VCENTER | DT_SINGLELINE);
-    }
-    RECT ch{r.right - S(24), r.top, r.right - S(4), r.bottom};
-    SelectObject(dc, g_iconFontSmall);
-    SetTextColor(dc, RGB(90, 90, 90));
-    DrawTextW(dc, L"", -1, &ch, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-}
-
-void ProfileMenu(HWND anchor) {
+void ProfileMenu(const RECT* anchor) {
     UpdateUi();
     enum { M_SAVE = 1, M_SAVEAS, M_RENAME, M_DELETE, M_RESET, M_FIRST = 100 };
     HMENU m = CreatePopupMenu();
@@ -289,10 +248,10 @@ void ProfileMenu(HWND anchor) {
     AppendMenuW(m, MF_STRING | (g_names.size() > 1 ? 0 : MF_GRAYED), M_DELETE, L"Delete profile");
     AppendMenuW(m, MF_SEPARATOR, 0, nullptr);
     AppendMenuW(m, MF_STRING, M_RESET, L"Reset layout to This PC");
-    RECT r;
-    GetWindowRect(anchor && IsWindowVisible(anchor) ? anchor : ActivePane()->hwnd, &r);
-    POINT pt = anchor && IsWindowVisible(anchor) ? POINT{r.left, r.bottom} : POINT{r.left + S(20), r.top + S(60)};
-    int c = TrackPopupMenu(m, TPM_RETURNCMD, pt.x, pt.y, 0, g_main, nullptr);
+    POINT pt;
+    if (anchor) pt = {anchor->right, anchor->bottom};
+    else { RECT r; GetWindowRect(ActivePane()->hwnd, &r); pt = {r.left + S(20), r.top + S(60)}; }
+    int c = TrackPopupMenu(m, TPM_RETURNCMD | (anchor ? TPM_RIGHTALIGN : 0), pt.x, pt.y, 0, g_main, nullptr);
     DestroyMenu(m);
     switch (c) {
     case 0: break;

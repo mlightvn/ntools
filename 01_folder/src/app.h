@@ -14,6 +14,13 @@ void FocusNextPane(bool fromSidebar);
 void RebuildAllColumns();
 void Relayout();
 void ToggleHidden();
+void ThemeChanged();                   // re-apply fonts, colours and layout after a theme switch
+
+// Global toolbar (toolbar.cpp)
+void ToolbarCreate(HWND parent);
+HWND ToolbarHwnd();
+int ToolbarHeight();
+void ToolbarRefresh();                 // re-layout (profile name / pane count changed)
 
 // INI (UTF-16 file next to the exe)
 wstring IniGet(const wchar_t* sec, const wchar_t* key, const wchar_t* def = L"");
@@ -55,10 +62,8 @@ void DropExternal(HDROP h);
 
 // Profiles: saved pane / tab layouts (profiles.cpp)
 void ProfilesInit();                  // apply the current profile (call once, after panes exist)
-void ProfileButtonCreate(HWND parent);
-HWND ProfileButton();
-void ProfileDrawButton(DRAWITEMSTRUCT* d);
-void ProfileMenu(HWND anchor);        // anchor == nullptr: show near the active pane
+wstring ProfileLabel();                // current profile name (+ unsaved marker)
+void ProfileMenu(const RECT* anchor);  // screen rect of the toolbar button; nullptr: near the active pane
 void ProfileSave();
 void ProfileTick();
 
@@ -75,3 +80,4 @@ vector<wstring> RecentPaths(size_t n);
 bool SidebarDropTarget(POINT screen, wstring& dir, bool& pin);
 void SidebarClearDropHi();
 void SidebarOnNotify(NMHDR* nm, LRESULT& res);
+void SidebarApplyTheme();

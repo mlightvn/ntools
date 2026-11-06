@@ -1,4 +1,5 @@
-// A pane: tab strip + toolbar + address bar + virtual details list + status line.
+// A pane: tab strip + navigation row (back/forward/up, breadcrumb, refresh) + title row +
+// virtual details list + status line. Everything is drawn with the current theme.
 #pragma once
 #include "fs.h"
 #include "addrbar.h"
@@ -18,6 +19,9 @@ struct Tab {
     wstring focusName;
     int top = 0;
 };
+
+// commands from the global toolbar
+enum PaneCmd { PC_NEWFOLDER, PC_CUT, PC_COPY, PC_PASTE, PC_RENAME, PC_DELETE, PC_TERMINAL };
 
 class Pane {
 public:
@@ -44,8 +48,10 @@ public:
     void RebuildColumns();
     void OnDrivesChanged();
     void Redraw() { InvalidateRect(list, nullptr, FALSE); }
-    void PaintBorder() { InvalidateRect(hwnd, nullptr, FALSE); }
+    void PaintBorder() { InvalidateRect(hwnd, nullptr, FALSE); InvalidateRect(tabs, nullptr, FALSE); }
     void UpdateStar();
+    void ApplyTheme();              // colours, row height, scrollbars for the current theme
+    void Command(PaneCmd c);
 
     bool HandleKey(const MSG& m);   // keys while the list has focus
     bool DropTarget(POINT screen, HWND under, wstring& dir);
@@ -55,22 +61,31 @@ public:
 private:
     vector<std::unique_ptr<Tab>> tabs_;
     int cur_ = 0, index_ = 0;
-    HWND plus_ = nullptr, btn_[7]{}, status_ = nullptr, tip_ = nullptr;
+    HWND btn_[5]{}, tip_ = nullptr;   // back, forward, up, refresh, star
+    HIMAGELIST rowIml_ = nullptr;      // empty image list that sets the row height
     Watcher watcher_;
     vector<int> cols_;
-    int colsMode_ = -1;            // 0 files, 1 drives
-    int dropHi_ = -1, hoverTab_ = -1;
+    int colsMode_ = -1;            // 0 files, 1 drives, 2 recycle bin
+    int dropHi_ = -1, hoverTab_ = -1, hotRow_ = -1;
     DWORD hoverTick_ = 0;
     bool editing_ = false, refreshPending_ = false, statusPending_ = false;
-    int closeHot_ = -1;            // tab whose "×" is under the mouse
-    bool tabTracking_ = false;
+    bool rowTracking_ = false, tabTracking_ = false;
+    wstring statusL_, statusR_;
+    // tab strip geometry (client coordinates of `tabs`)
+    vector<RECT> tabRects_;
+    RECT plusRect_{};
+    int tabHot_ = -1, closeHot_ = -1;
 
     int Mode();                    // 0 folder, 1 This PC, 2 Recycle Bin
     void BinDelete(bool all);
     void BinRestore();
+    void LayoutTabs();
+    int HitTab(POINT pt);
     bool CloseRect(int i, RECT* r);
-    int CloseHit(POINT pt);
+    void PaintTabs(HDC dc);
     void TabMenu(int i, POINT screen);
+    void DrawRow(HDC dc, int i);
+    void PaintHeader(HWND h, HDC dc);
 
     void Layout();
     void SaveView();
@@ -91,5 +106,7 @@ private:
     void DrawButton(DRAWITEMSTRUCT* d);
     LRESULT Proc(UINT m, WPARAM w, LPARAM l);
     static LRESULT CALLBACK StaticProc(HWND, UINT, WPARAM, LPARAM);
-    static LRESULT CALLBACK TabsProc(HWND, UINT, WPARAM, LPARAM, UINT_PTR, DWORD_PTR);
+    static LRESULT CALLBACK TabsWndProc(HWND, UINT, WPARAM, LPARAM);
+    static LRESULT CALLBACK ListProc(HWND, UINT, WPARAM, LPARAM, UINT_PTR, DWORD_PTR);
+    static LRESULT CALLBACK HeaderProc(HWND, UINT, WPARAM, LPARAM, UINT_PTR, DWORD_PTR);
 };

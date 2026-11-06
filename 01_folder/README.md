@@ -19,15 +19,22 @@ build.bat
 ## Interface
 
 ```
-┌ sidebar ─────┐┌ pane 1 ──────────────────┐┌ pane 2 ─────────── ┐
-│ ★ Favourites ││ [tab] [tab] [+]          ││ ...                │
-│ ⚡ Quick acc. ││ ← → ↑ ⟳          [📁+][☆] ││                    │
-│ Drives       ││ This PC › D: › Media ›  ▾││                    │
-│              ││ Name   Type   Date  Size ││                    │
-└──────────────┘└──────────────────────────┘└────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ [New folder] ✂ ⧉ 📋 ✎ 🗑  [Terminal]                 ▭ ▭▭ ▭▭▭  🎨  [Default ▾] │  toolbar
+├ FAVOURITES ───┬ [tab] [tab] [+]       L / ACTIVE ┬ [tab] [+]                 R ┤
+│ QUICK ACCESS  │ ← → ↑  This PC › D: › Media ›  ⟳ │ ...                         │
+│ DRIVES        │ Media  12 items                ☆ │                             │
+│               │ Name        Type    Date    Size │                             │
+│               │ 3 items          1 folder · 2 files                           │
+├───────────────┴──────────────────────────────────┴─────────────────────────────┤
+│ Tab Switch pane  Ctrl C Copy  Ctrl X Cut ...                  ● Hidden files off │  status bar
+└──────────────────────────────────────────────────────────────────────────────┘
 ```
 
-- 1, 2 or 3 panes: use the **Layout** button on the toolbar (left of New folder) or Ctrl+1 / 2 / 3. Drag the splitter between panes to resize them. Each pane has its own tabs; a new tab opens at **This PC**.
+- **Toolbar** (always visible): New folder, Cut, Copy, Paste, Rename, Delete (Shift+click deletes permanently), Terminal (opens Windows Terminal, or cmd, in the current folder). They act on the active pane. On the right: the 1 / 2 / 3 pane layout, the theme picker and the profile menu.
+- **Themes**: click the palette button on the toolbar. **Void** (dark navy, the default), **Flux** (dark purple, coloured file tiles with extension badges), **Mono** (black, green accent, monospace everywhere) and **Light** (Windows icons). The theme also colours the title bar, menus and scrollbars. The choice is saved in `nexplorer.ini` (`[Window] theme=`).
+- **Status bar** (bottom): shortcut reminders; click **Hidden files on/off** to show or hide hidden files (same as Ctrl+H).
+- 1, 2 or 3 panes: use the layout buttons on the toolbar or Ctrl+1 / 2 / 3. Drag the splitter between panes to resize them. Each pane has its own tabs; a new tab opens at **This PC**. The active pane shows `ACTIVE` and an accent line on its current tab.
 - **Tabs**: click the `×` on a tab to close it (or Ctrl+W, middle-click). Right-click a tab for Close tab, Close other tabs, Close tabs to the right, Duplicate tab and New tab. Double-click the empty part of the tab strip to open a new tab.
 - **Address bar**:
   - Click a segment to go there; click `›` to pick a subfolder; `▾` opens the history.
@@ -41,7 +48,7 @@ build.bat
   - Del or Shift+Del: delete permanently (asks for confirmation).
   - Right-click: Restore (back to the original location; if the name is taken, both are kept), Delete permanently, Empty Recycle Bin.
   - Dropping files onto the Recycle Bin (sidebar / address bar) recycles them.
-- **Profiles** (button at the top of the sidebar, or Ctrl+P):
+- **Profiles** (button at the right end of the toolbar, or Ctrl+P):
   - A profile stores the number of panes, their widths, the active pane, and for each pane its tabs (order, path, selected tab).
   - The layout is **saved only when you press Save (Ctrl+S)**. The app opens the last used profile with its saved layout; a profile that was never saved shows This PC in every pane.
   - A ● next to the profile name (and in the title bar) means the current layout differs from the saved one. Switching profiles with unsaved changes asks whether to save them.
@@ -131,6 +138,7 @@ Tested:
 - [x] Password-protected 7z (7zAES, hidden file names; wrong password rejected), Extract to folder with a protected archive (7-Zip asks for the password)
 - [x] Profiles: This PC by default, Ctrl+S then reopening restores the layout, Save as / Rename / Delete, switching profiles, prompt for unsaved changes
 - [x] Shift + wheel scrolls horizontally; the plain wheel still scrolls vertically; tilt wheel / touchpad scroll horizontally
+- [x] Themes Void / Flux / Mono / Light, switching at runtime; global toolbar (New folder, Cut, Copy, Paste, Rename, Delete, Terminal); status bar
 
 Not done yet (current limitations):
 

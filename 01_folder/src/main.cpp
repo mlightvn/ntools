@@ -3,6 +3,7 @@
 #include "pane.h"
 #include "columns.h"
 #include "fileops.h"
+#include "theme.h"
 #include <thread>
 
 HINSTANCE g_inst;
@@ -42,34 +43,70 @@ static void InitIni() {
     }
 }
 
-// ---------- fonts ----------
-static int CALLBACK FontExists(const LOGFONTW*, const TEXTMETRICW*, DWORD, LPARAM l) { *(bool*)l = true; return 0; }
-
-static void CreateFonts() {
-    if (g_font) { DeleteObject(g_font); DeleteObject(g_fontBold); DeleteObject(g_iconFont); DeleteObject(g_iconFontSmall); }
-    NONCLIENTMETRICSW ncm{sizeof(ncm)};
-    SystemParametersInfoForDpi(SPI_GETNONCLIENTMETRICS, sizeof(ncm), &ncm, 0, g_dpi);
-    g_font = CreateFontIndirectW(&ncm.lfMessageFont);
-    ncm.lfMessageFont.lfWeight = FW_SEMIBOLD;
-    g_fontBold = CreateFontIndirectW(&ncm.lfMessageFont);
-    LOGFONTW lf{};
-    lf.lfCharSet = DEFAULT_CHARSET;
-    wcscpy(lf.lfFaceName, L"Segoe Fluent Icons");
-    bool fluent = false;
-    HDC dc = GetDC(nullptr);
-    EnumFontFamiliesExW(dc, &lf, FontExists, (LPARAM)&fluent, 0);
-    ReleaseDC(nullptr, dc);
-    lf.lfHeight = -S(14);
-    lf.lfQuality = CLEARTYPE_QUALITY;
-    if (!fluent) wcscpy(lf.lfFaceName, L"Segoe MDL2 Assets");
-    g_iconFont = CreateFontIndirectW(&lf);
-    lf.lfHeight = -S(9);
-    g_iconFontSmall = CreateFontIndirectW(&lf);
-}
-
+// ---------- fonts / theme ----------
 static BOOL CALLBACK SetFontProc(HWND h, LPARAM) {
     SendMessageW(h, WM_SETFONT, (WPARAM)g_font, TRUE);
     return TRUE;
+}
+
+void ThemeChanged() {
+    ThemeFonts();
+    EnumChildWindows(g_main, SetFontProc, 0);
+    ThemeTitleBar(g_main);
+    for (int i = 0; i < 3; i++) g_panes[i]->ApplyTheme();
+    SidebarApplyTheme();
+    ToolbarRefresh();
+    RebuildAllColumns();
+    Relayout();
+    RedrawWindow(g_main, nullptr, nullptr, RDW_INVALIDATE | RDW_ERASE | RDW_FRAME | RDW_ALLCHILDREN);
+}
+
+// ---------- bottom status bar: shortcut chips + hidden-files toggle ----------
+static RECT g_hiddenChip{};
+
+static int StatusH() { return S(30); }
+
+static void PaintStatusBar(HDC dc, const RECT& rc) {
+    const Theme& t = *g_theme;
+    RECT bar{rc.left, rc.bottom - StatusH(), rc.right, rc.bottom};
+    Fill(dc, bar, t.toolbar);
+    RECT ln = bar; ln.bottom = ln.top + 1;
+    Fill(dc, ln, t.border);
+    SetBkMode(dc, TRANSPARENT);
+    static const wchar_t* chips[][2] = {{L"Tab", L"Switch pane"}, {L"Ctrl C", L"Copy"}, {L"Ctrl X", L"Cut"}, {L"Ctrl V", L"Paste"},
+                                         {L"F2", L"Rename"}, {L"Del", L"Delete"}, {L"Ctrl T", L"New tab"}, {L"Ctrl B", L"Sidebar"}};
+    int x = bar.left + S(12), cy = (bar.top + bar.bottom) / 2, kh = S(18);
+    // right: hidden files toggle
+    wstring hid = g_showHidden ? L"Hidden files on" : L"Hidden files off";
+    SelectObject(dc, g_fontSmall);
+    SIZE hs; GetTextExtentPoint32W(dc, hid.c_str(), (int)hid.size(), &hs);
+    g_hiddenChip = {bar.right - S(12) - hs.cx - S(26), cy - kh / 2 - S(1), bar.right - S(12), cy + kh / 2 + S(1)};
+    RoundFill(dc, g_hiddenChip, S(6), t.chip, t.border);
+    RECT dot{g_hiddenChip.left + S(8), cy - S(3), g_hiddenChip.left + S(14), cy + S(3)};
+    RoundFill(dc, dot, S(6), g_showHidden ? t.accent : t.faint, g_showHidden ? t.accent : t.faint);
+    RECT ht = g_hiddenChip; ht.left = dot.right + S(6);
+    SetTextColor(dc, t.dim);
+    DrawTextW(dc, hid.c_str(), -1, &ht, DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX);
+    int limit = g_hiddenChip.left - S(16);
+    for (auto& c : chips) {
+        SIZE ks, ls;
+        SelectObject(dc, g_fontMono);
+        GetTextExtentPoint32W(dc, c[0], lstrlenW(c[0]), &ks);
+        SelectObject(dc, g_fontSmall);
+        GetTextExtentPoint32W(dc, c[1], lstrlenW(c[1]), &ls);
+        int kw = ks.cx + S(12);
+        if (x + kw + S(6) + ls.cx > limit) break;
+        RECT k{x, cy - kh / 2, x + kw, cy + kh / 2};
+        RoundFill(dc, k, S(5), t.chip, t.border);
+        SelectObject(dc, g_fontMono);
+        SetTextColor(dc, t.text);
+        DrawTextW(dc, c[0], -1, &k, DT_SINGLELINE | DT_VCENTER | DT_CENTER | DT_NOPREFIX);
+        RECT lt{k.right + S(6), bar.top, k.right + S(6) + ls.cx + S(2), bar.bottom};
+        SelectObject(dc, g_fontSmall);
+        SetTextColor(dc, t.faint);
+        DrawTextW(dc, c[1], -1, &lt, DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX);
+        x = lt.right + S(16);
+    }
 }
 
 // ---------- panes / layout ----------
@@ -101,6 +138,7 @@ void RebuildAllColumns() {
 void ToggleHidden() {
     g_showHidden = !g_showHidden;
     for (int i = 0; i < 3; i++) g_panes[i]->Refresh();
+    InvalidateRect(g_main, nullptr, FALSE);
 }
 
 void SetCutSet(const vector<wstring>& paths) {
@@ -116,45 +154,52 @@ void ClearCutSet() {
 }
 
 static int Gap() { return S(5); }
+static int StatusH();
+
+// area between the toolbar and the status bar
+static RECT BodyRect() {
+    RECT rc; GetClientRect(g_main, &rc);
+    rc.top = ToolbarHeight();
+    rc.bottom = std::max(rc.top, rc.bottom - StatusH());
+    return rc;
+}
 
 // x-ranges of splitter gaps, in client coordinates
 static vector<RECT> GapRects() {
     vector<RECT> v;
-    RECT rc; GetClientRect(g_main, &rc);
+    RECT rc = BodyRect();
     int x = 0;
-    if (g_sideVisible) { x = S(g_sideW); v.push_back({x, 0, x + Gap(), rc.bottom}); x += Gap(); }
+    if (g_sideVisible) { x = S(g_sideW); v.push_back({x, rc.top, x + Gap(), rc.bottom}); x += Gap(); }
     else v.push_back({-100, 0, -100, 0});
     int avail = rc.right - x - Gap() * (g_paneCount - 1);
     double sum = 0;
     for (int i = 0; i < g_paneCount; i++) sum += g_frac[i];
     for (int i = 0; i < g_paneCount - 1; i++) {
         x += (int)(avail * g_frac[i] / sum);
-        v.push_back({x, 0, x + Gap(), rc.bottom});
+        v.push_back({x, rc.top, x + Gap(), rc.bottom});
         x += Gap();
     }
     return v;
 }
 
 void Relayout() {
-    RECT rc; GetClientRect(g_main, &rc);
+    RECT full; GetClientRect(g_main, &full);
+    RECT rc = BodyRect();
     vector<RECT> gaps = GapRects();
-    HWND side = SidebarHwnd(), prof = ProfileButton();
+    MoveWindow(ToolbarHwnd(), 0, 0, full.right, rc.top, TRUE);
+    HWND side = SidebarHwnd();
     ShowWindow(side, g_sideVisible ? SW_SHOW : SW_HIDE);
-    ShowWindow(prof, g_sideVisible ? SW_SHOW : SW_HIDE);
-    if (g_sideVisible) {
-        int ph = S(34);  // profile selector on top of the sidebar
-        MoveWindow(prof, S(4), S(4), S(g_sideW) - S(8), ph, TRUE);
-        MoveWindow(side, 0, ph + S(8), S(g_sideW), rc.bottom - ph - S(8), TRUE);
-    }
+    if (g_sideVisible) MoveWindow(side, 0, rc.top, S(g_sideW), rc.bottom - rc.top, TRUE);
     int x = g_sideVisible ? gaps[0].right : 0;
     for (int i = 0; i < 3; i++) {
         if (i >= g_paneCount) { ShowWindow(g_panes[i]->hwnd, SW_HIDE); continue; }
         int right = i + 1 < g_paneCount ? gaps[i + 1].left : rc.right;
-        MoveWindow(g_panes[i]->hwnd, x, 0, right - x, rc.bottom, TRUE);
+        MoveWindow(g_panes[i]->hwnd, x, rc.top, right - x, rc.bottom - rc.top, TRUE);
         ShowWindow(g_panes[i]->hwnd, SW_SHOW);
         if (i + 1 < g_paneCount) x = gaps[i + 1].right;
     }
-    InvalidateRect(g_main, nullptr, TRUE);
+    InvalidateRect(g_main, nullptr, FALSE);
+    ToolbarRefresh();
 }
 
 void SetPaneCount(int n) {
@@ -431,10 +476,11 @@ static LRESULT CALLBACK MainProc(HWND h, UINT m, WPARAM w, LPARAM l) {
     case WM_CREATE: {
         g_main = h;
         g_dpi = GetDpiForWindow(h);
-        CreateFonts();
+        ThemeFonts();
+        ThemeTitleBar(h);
+        ToolbarCreate(h);
         for (int i = 0; i < 3; i++) { g_panes[i] = new Pane(); g_panes[i]->Create(h, i); }
         SidebarCreate(h);
-        ProfileButtonCreate(h);
         SetTimer(h, 78, 1000, nullptr);  // refresh the "unsaved profile" marker
         DragAcceptFiles(h, TRUE);
         AddClipboardFormatListener(h);
@@ -444,7 +490,17 @@ static LRESULT CALLBACK MainProc(HWND h, UINT m, WPARAM w, LPARAM l) {
     case WM_PAINT: {
         PAINTSTRUCT ps;
         HDC dc = BeginPaint(h, &ps);
-        FillRect(dc, &ps.rcPaint, GetSysColorBrush(COLOR_WINDOW));
+        RECT rc; GetClientRect(h, &rc);
+        HDC mem = CreateCompatibleDC(dc);
+        HBITMAP bmp = CreateCompatibleBitmap(dc, rc.right, rc.bottom);
+        HGDIOBJ ob = SelectObject(mem, bmp);
+        Fill(mem, rc, g_theme->app);  // splitter gaps
+        PaintStatusBar(mem, rc);
+        BitBlt(dc, ps.rcPaint.left, ps.rcPaint.top, ps.rcPaint.right - ps.rcPaint.left, ps.rcPaint.bottom - ps.rcPaint.top, mem,
+               ps.rcPaint.left, ps.rcPaint.top, SRCCOPY);
+        SelectObject(mem, ob);
+        DeleteObject(bmp);
+        DeleteDC(mem);
         EndPaint(h, &ps);
         return 0;
     }
@@ -454,8 +510,10 @@ static LRESULT CALLBACK MainProc(HWND h, UINT m, WPARAM w, LPARAM l) {
             for (auto& r : GapRects()) if (PtInRect(&r, pt)) { SetCursor(LoadCursor(nullptr, IDC_SIZEWE)); return TRUE; }
         }
         break;
+    case WM_ERASEBKGND: return 1;
     case WM_LBUTTONDOWN: {
         POINT pt{GET_X_LPARAM(l), GET_Y_LPARAM(l)};
+        if (PtInRect(&g_hiddenChip, pt)) { ToggleHidden(); return 0; }
         vector<RECT> gaps = GapRects();
         for (int i = 0; i < (int)gaps.size(); i++)
             if (PtInRect(&gaps[i], pt)) { g_dragGap = i; SetCapture(h); return 0; }
@@ -494,12 +552,6 @@ static LRESULT CALLBACK MainProc(HWND h, UINT m, WPARAM w, LPARAM l) {
     case WM_TIMER:
         if (w == 77) DragUpdate();
         if (w == 78) ProfileTick();
-        return 0;
-    case WM_DRAWITEM:
-        if (((DRAWITEMSTRUCT*)l)->hwndItem == ProfileButton()) { ProfileDrawButton((DRAWITEMSTRUCT*)l); return TRUE; }
-        break;
-    case WM_COMMAND:
-        if ((HWND)l == ProfileButton() && HIWORD(w) == BN_CLICKED) ProfileMenu(ProfileButton());
         return 0;
     case WM_NOTIFY: {
         NMHDR* nm = (NMHDR*)l;
@@ -543,12 +595,9 @@ static LRESULT CALLBACK MainProc(HWND h, UINT m, WPARAM w, LPARAM l) {
         return 0;
     case WM_DPICHANGED: {
         g_dpi = HIWORD(w);
-        CreateFonts();
-        EnumChildWindows(h, SetFontProc, 0);
         RECT* r = (RECT*)l;
         SetWindowPos(h, nullptr, r->left, r->top, r->right - r->left, r->bottom - r->top, SWP_NOZORDER | SWP_NOACTIVATE);
-        RebuildAllColumns();
-        Relayout();
+        ThemeChanged();
         return 0;
     }
     case WM_CLOSE:
@@ -572,11 +621,13 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, LPWSTR cmd, int show) {
     InitCommonControlsEx(&icc);
     InitIni();
     LoadSettings();
+    ThemeInit();
 
     WNDCLASSEXW wc{sizeof(wc)};
     wc.lpfnWndProc = MainProc;
     wc.hInstance = inst;
     wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
+    wc.hbrBackground = nullptr;
     wc.hIcon = LoadIconW(inst, MAKEINTRESOURCEW(1));
     wc.lpszClassName = L"NxMain";
     RegisterClassExW(&wc);

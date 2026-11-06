@@ -3,12 +3,13 @@
 #include "columns.h"
 #include "clip.h"
 #include "fileops.h"
+#include "theme.h"
 
-enum { ID_BACK = 201, ID_FWD, ID_UP, ID_REFRESH, ID_NEWFOLDER, ID_STAR, ID_LAYOUT, ID_PLUS };
-static const wchar_t* kGlyph[] = {L"", L"", L"", L"", L"", L"", L""};
-static const wchar_t* kTip[] = {L"Back (Alt+Left)", L"Forward (Alt+Right)", L"Up (Alt+Up)", L"Refresh (F5)",
-                                L"New folder (Ctrl+Shift+N)", L"Add to Favourites (Ctrl+D)", L"Panes: 1 / 2 / 3 (Ctrl+1/2/3)"};
+enum { ID_BACK = 201, ID_FWD, ID_UP, ID_REFRESH, ID_STAR };
+static const wchar_t* kGlyph[] = {L"", L"", L"", L"", L""};
+static const wchar_t* kTip[] = {L"Back (Alt+Left)", L"Forward (Alt+Right)", L"Up (Alt+Up)", L"Refresh (F5)", L"Add to Favourites (Ctrl+D)"};
 static int g_nextTabId = 1;
+static const int kTabH = 36, kNavH = 42, kTitleH = 38, kStatusH = 28;  // row heights at 96 dpi
 
 static wstring LnkFolder(const wstring& lnk) {  // .lnk pointing to a folder -> folder path
     wstring r;
@@ -34,79 +35,88 @@ void Pane::Create(HWND parent, int index) {
         wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
         wc.lpszClassName = L"NxPane";
         RegisterClassW(&wc);
+        WNDCLASSW tc{};
+        tc.lpfnWndProc = TabsWndProc;
+        tc.hInstance = g_inst;
+        tc.hCursor = LoadCursor(nullptr, IDC_ARROW);
+        tc.lpszClassName = L"NxTabs";
+        tc.style = CS_DBLCLKS;
+        RegisterClassW(&tc);
         reg = true;
     }
     index_ = index;
     hwnd = CreateWindowExW(0, L"NxPane", L"", WS_CHILD | WS_CLIPCHILDREN, 0, 0, 10, 10, parent, nullptr, g_inst, this);
-    tabs = CreateWindowExW(0, WC_TABCONTROLW, L"", WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | TCS_FOCUSNEVER | TCS_TOOLTIPS,
-                           0, 0, 10, 10, hwnd, nullptr, g_inst, nullptr);
-    SetWindowSubclass(tabs, TabsProc, 1, (DWORD_PTR)this);
-    plus_ = CreateWindowW(L"BUTTON", L"", WS_CHILD | WS_VISIBLE | BS_OWNERDRAW, 0, 0, 10, 10, hwnd, (HMENU)ID_PLUS, g_inst, nullptr);
-    tip_ = CreateWindowExW(WS_EX_TOPMOST, TOOLTIPS_CLASSW, nullptr, WS_POPUP | TTS_ALWAYSTIP, 0, 0, 0, 0, hwnd, nullptr, g_inst, nullptr);
-    for (int i = 0; i < 7; i++) {
+    tabs = CreateWindowExW(0, L"NxTabs", L"", WS_CHILD | WS_VISIBLE, 0, 0, 10, 10, hwnd, nullptr, g_inst, this);
+    tip_ = CreateWindowExW(WS_EX_TOPMOST, TOOLTIPS_CLASSW, nullptr, WS_POPUP | TTS_ALWAYSTIP | TTS_NOPREFIX, 0, 0, 0, 0, hwnd, nullptr, g_inst, nullptr);
+    for (int i = 0; i < 5; i++) {
         btn_[i] = CreateWindowW(L"BUTTON", kGlyph[i], WS_CHILD | WS_VISIBLE | BS_OWNERDRAW, 0, 0, 10, 10, hwnd, (HMENU)(INT_PTR)(ID_BACK + i), g_inst, nullptr);
         TTTOOLINFOW ti{sizeof(ti), TTF_IDISHWND | TTF_SUBCLASS, hwnd, (UINT_PTR)btn_[i]};
         ti.lpszText = (LPWSTR)kTip[i];
         SendMessageW(tip_, TTM_ADDTOOLW, 0, (LPARAM)&ti);
     }
-    TTTOOLINFOW ti{sizeof(ti), TTF_IDISHWND | TTF_SUBCLASS, hwnd, (UINT_PTR)plus_};
-    ti.lpszText = (LPWSTR)L"New tab (Ctrl+T)";
+    TTTOOLINFOW ti{sizeof(ti), TTF_SUBCLASS, tabs, 1};
+    ti.lpszText = LPSTR_TEXTCALLBACKW;
+    ti.rect = {0, 0, 32000, 32000};
     SendMessageW(tip_, TTM_ADDTOOLW, 0, (LPARAM)&ti);
     addr.Create(hwnd, this);
     list = CreateWindowExW(0, WC_LISTVIEWW, L"", WS_CHILD | WS_VISIBLE | WS_TABSTOP | LVS_REPORT | LVS_OWNERDATA |
                            LVS_SHOWSELALWAYS | LVS_EDITLABELS | LVS_SHAREIMAGELISTS, 0, 0, 10, 10, hwnd, nullptr, g_inst, nullptr);
     ListView_SetExtendedListViewStyle(list, LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER | LVS_EX_HEADERDRAGDROP);
-    SetWindowTheme(list, L"Explorer", nullptr);
-    ListView_SetImageList(list, SysImageList(), LVSIL_SMALL);
     ListView_SetCallbackMask(list, LVIS_CUT | LVIS_DROPHILITED);
-    status_ = CreateWindowW(L"STATIC", L"", WS_CHILD | WS_VISIBLE | SS_LEFTNOWORDWRAP | SS_CENTERIMAGE, 0, 0, 10, 10, hwnd, nullptr, g_inst, nullptr);
-    for (HWND c : {tabs, list, status_}) SendMessageW(c, WM_SETFONT, (WPARAM)g_font, FALSE);
+    SetWindowSubclass(list, ListProc, 1, (DWORD_PTR)this);
+    SetWindowSubclass(ListView_GetHeader(list), HeaderProc, 1, (DWORD_PTR)this);
+    ApplyTheme();
+}
+
+void Pane::ApplyTheme() {
+    const Theme& t = *g_theme;
+    ThemeWindow(list);
+    ThemeWindow(tip_);
+    SendMessageW(list, WM_SETFONT, (WPARAM)g_font, FALSE);
+    ListView_SetBkColor(list, t.pane);
+    ListView_SetTextBkColor(list, t.pane);
+    ListView_SetTextColor(list, t.text);
+    {  // rows are custom-drawn: an empty image list sets the row height and the icon slot
+        HIMAGELIST old = rowIml_;
+        rowIml_ = ImageList_Create(S(22), S(t.rowH), ILC_COLOR32, 1, 0);
+        ListView_SetImageList(list, rowIml_, LVSIL_SMALL);
+        if (old) ImageList_Destroy(old);
+    }
+    SetWindowPos(list, nullptr, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
+    Layout();
+    for (HWND h : {hwnd, list, tabs, addr.hwnd, ListView_GetHeader(list)}) InvalidateRect(h, nullptr, TRUE);
 }
 
 // ---------- layout / painting ----------
 void Pane::Layout() {
+    if (!list) return;
     RECT rc; GetClientRect(hwnd, &rc);
-    int b = S(2), w = rc.right - 2 * b, x = b, y = b;
-    int th = S(28), bh = S(30), ah = S(30), sh = S(22), bw = S(32);
-    int last = 0;
-    MoveWindow(tabs, x, y, w - bw, th, FALSE);  // measure tabs at full width (hidden tabs report empty rects)
-    if (TabCtrl_GetItemCount(tabs)) {
-        RECT ir; TabCtrl_GetItemRect(tabs, TabCtrl_GetItemCount(tabs) - 1, &ir);
-        last = ir.right;
-    }
-    int tabsW = std::max(S(40), std::min(last + S(2), w - bw));  // tabs never overlap the "+" button
-    MoveWindow(tabs, x, y, tabsW, th, TRUE);
-    MoveWindow(plus_, x + tabsW + S(2), y + S(2), bw - S(4), th - S(4), TRUE);
-    y += th;
-    for (int i = 0; i < 4; i++) MoveWindow(btn_[i], x + S(2) + i * bw, y + S(1), bw - S(2), bh - S(2), TRUE);
-    MoveWindow(btn_[6], x + w - 3 * bw - S(2), y + S(1), bw - S(2), bh - S(2), TRUE);
-    MoveWindow(btn_[4], x + w - 2 * bw - S(2), y + S(1), bw - S(2), bh - S(2), TRUE);
-    MoveWindow(btn_[5], x + w - bw - S(2), y + S(1), bw - S(2), bh - S(2), TRUE);
-    y += bh;
-    MoveWindow(addr.hwnd, x + S(4), y + S(1), w - S(8), ah - S(4), TRUE);
-    y += ah;
-    MoveWindow(list, x, y, w, rc.bottom - b - sh - y, TRUE);
-    MoveWindow(status_, x + S(8), rc.bottom - b - sh, w - S(16), sh, TRUE);
+    int w = rc.right, bw = S(32), bh = S(30);
+    MoveWindow(tabs, 0, 0, w, S(kTabH), TRUE);
+    LayoutTabs();
+    int y = S(kTabH), ny = y + (S(kNavH) - bh) / 2;
+    for (int i = 0; i < 3; i++) MoveWindow(btn_[i], S(8) + i * bw, ny, bw - S(2), bh, TRUE);
+    MoveWindow(btn_[3], w - S(8) - bw, ny, bw - S(2), bh, TRUE);  // refresh
+    int ax = S(8) + 3 * bw + S(8);
+    MoveWindow(addr.hwnd, ax, ny, std::max(S(40), w - S(14) - bw - ax), bh, TRUE);
+    y += S(kNavH);
+    MoveWindow(btn_[4], w - S(8) - bw, y + (S(kTitleH) - bh) / 2, bw - S(2), bh, TRUE);  // star
+    y += S(kTitleH);
+    MoveWindow(list, 0, y, w, std::max(0, (int)rc.bottom - S(kStatusH) - y), TRUE);
 }
 
 void Pane::DrawButton(DRAWITEMSTRUCT* d) {
+    const Theme& t = *g_theme;
     int id = d->CtlID;
     bool fav = id == ID_STAR && IsFavourite(Path());
     bool dis = d->itemState & ODS_DISABLED;
-    FillRect(d->hDC, &d->rcItem, GetSysColorBrush(COLOR_WINDOW));
-    if (d->itemState & ODS_SELECTED) {
-        HBRUSH br = CreateSolidBrush(RGB(204, 228, 247));
-        FillRect(d->hDC, &d->rcItem, br);
-        DeleteObject(br);
-    }
-    SetBkMode(d->hDC, TRANSPARENT);
-    SelectObject(d->hDC, g_iconFont);
-    SetTextColor(d->hDC, dis ? RGB(190, 190, 190) : fav ? RGB(230, 160, 0) : id == ID_NEWFOLDER ? RGB(200, 140, 20) : RGB(50, 50, 50));
-    const wchar_t* g = id == ID_PLUS ? L"" : fav ? L"" : kGlyph[id - ID_BACK];
-    DrawTextW(d->hDC, g, -1, &d->rcItem, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+    Fill(d->hDC, d->rcItem, t.pane);
+    if (d->itemState & ODS_SELECTED) RoundFill(d->hDC, d->rcItem, S(6), t.hot, t.hot);
+    COLORREF c = dis ? t.faint : fav ? RGB(250, 190, 40) : t.dim;
+    Glyph(d->hDC, fav ? L"" : kGlyph[id - ID_BACK], d->rcItem, c);
 }
 
-void Pane::UpdateStar() { InvalidateRect(btn_[5], nullptr, FALSE); }
+void Pane::UpdateStar() { InvalidateRect(btn_[4], nullptr, FALSE); }
 
 // ---------- tabs ----------
 void Pane::NewTab(const wstring& path, bool activate) {
@@ -114,9 +124,6 @@ void Pane::NewTab(const wstring& path, bool activate) {
     t->id = g_nextTabId++;
     t->path = path;
     tabs_.push_back(std::move(t));
-    TCITEMW ti{TCIF_TEXT};
-    ti.pszText = (LPWSTR)L"";
-    TabCtrl_InsertItem(tabs, tabs_.size() - 1, &ti);
     if (activate || tabs_.size() == 1) SwitchTab((int)tabs_.size() - 1);
     else { tabs_.back()->loading = true; ListAsync(hwnd, tabs_.back()->id, 0, path, C_NAME, true); }
     UpdateTabs();
@@ -125,7 +132,6 @@ void Pane::NewTab(const wstring& path, bool activate) {
 void Pane::ResetTabs(const vector<wstring>& paths, int cur) {
     if (editing_) ListView_CancelEditLabel(list);
     tabs_.clear();
-    TabCtrl_DeleteAllItems(tabs);
     cur_ = -1;
     if (paths.empty()) { NewTab(L""); return; }
     cur = std::max(0, std::min(cur, (int)paths.size() - 1));
@@ -136,10 +142,10 @@ void Pane::CloseTab(int i) {
     if (tabs_.size() <= 1) { Navigate(L""); tabs_[0]->back.clear(); tabs_[0]->fwd.clear(); return; }
     if (i == cur_) SaveView();
     tabs_.erase(tabs_.begin() + i);
-    TabCtrl_DeleteItem(tabs, i);
     int n = cur_;
     if (i < cur_ || n >= (int)tabs_.size()) n = std::max(0, cur_ - 1);
     cur_ = -1;
+    tabHot_ = closeHot_ = -1;
     SwitchTab(std::min(n, (int)tabs_.size() - 1));
     UpdateTabs();
 }
@@ -148,7 +154,6 @@ void Pane::SwitchTab(int i) {
     if (i < 0 || i >= (int)tabs_.size()) return;
     if (cur_ >= 0 && cur_ < (int)tabs_.size() && cur_ != i) SaveView();
     cur_ = i;
-    TabCtrl_SetCurSel(tabs, i);
     Tab* t = T();
     addr.SetPath(t->path);
     UpdateStar();
@@ -156,36 +161,98 @@ void Pane::SwitchTab(int i) {
     if (t->items.empty() && !t->loading) Load();
     else { ShowItems(true); if (!t->loading) Refresh(); }
     Layout();
+    InvalidateRect(hwnd, nullptr, FALSE);
 }
 
 void Pane::UpdateTabs() {
-    for (size_t i = 0; i < tabs_.size(); i++) {
-        wstring name = DisplayName(tabs_[i]->path);
-        if (name.size() > 24) name = name.substr(0, 22) + L"…";
-        name += L"  ";  // two em spaces: room for the "×" (themed tabs ignore TCM_SETPADDING)
-        TCITEMW ti{TCIF_TEXT};
-        ti.pszText = (LPWSTR)name.c_str();
-        TabCtrl_SetItem(tabs, i, &ti);
-    }
-    Layout();
+    LayoutTabs();
+    InvalidateRect(hwnd, nullptr, FALSE);  // title row
 }
 
-// "×" area at the right of tab i (trailing spaces in the label leave room for it)
+void Pane::LayoutTabs() {
+    RECT rc; GetClientRect(tabs, &rc);
+    HDC dc = GetDC(tabs);
+    HGDIOBJ of = SelectObject(dc, g_font);
+    int n = (int)tabs_.size(), x = S(6);
+    int avail = rc.right - x - S(40) - (g_paneCount > 1 ? S(96) : S(8));
+    vector<int> widths;
+    int total = 0;
+    for (auto& tb : tabs_) {
+        wstring s = DisplayName(tb->path);
+        SIZE sz; GetTextExtentPoint32W(dc, s.c_str(), (int)s.size(), &sz);
+        int w = std::max(S(90), std::min(S(210), (int)sz.cx + S(66)));
+        widths.push_back(w);
+        total += w;
+    }
+    if (n && total > avail) { int each = std::max(S(56), avail / n); for (auto& w : widths) w = std::min(w, each); }
+    tabRects_.clear();
+    for (int i = 0; i < n; i++) { tabRects_.push_back({x, S(4), x + widths[i], rc.bottom}); x += widths[i] + S(2); }
+    plusRect_ = {x + S(4), S(9), x + S(30), rc.bottom - S(5)};
+    SelectObject(dc, of);
+    ReleaseDC(tabs, dc);
+    InvalidateRect(tabs, nullptr, FALSE);
+}
+
+int Pane::HitTab(POINT pt) {
+    for (int i = 0; i < (int)tabRects_.size(); i++) if (PtInRect(&tabRects_[i], pt)) return i;
+    return -1;
+}
+
+// "×" area at the right of tab i
 bool Pane::CloseRect(int i, RECT* r) {
-    if (!TabCtrl_GetItemRect(tabs, i, r)) return false;
+    if (i < 0 || i >= (int)tabRects_.size()) return false;
+    *r = tabRects_[i];
+    r->right -= S(8);
     r->left = r->right - S(20);
-    r->right -= S(4);
-    r->top += S(4);
-    r->bottom -= S(2);
+    int mid = (r->top + r->bottom) / 2;
+    r->top = mid - S(10);
+    r->bottom = mid + S(10);
     return true;
 }
 
-int Pane::CloseHit(POINT pt) {
-    for (int i = 0; i < (int)tabs_.size(); i++) {
-        RECT r;
-        if (CloseRect(i, &r) && PtInRect(&r, pt)) return i;
+void Pane::PaintTabs(HDC dc) {
+    const Theme& t = *g_theme;
+    RECT rc; GetClientRect(tabs, &rc);
+    Fill(dc, rc, t.app);
+    RECT line = rc; line.top = line.bottom - 1;
+    Fill(dc, line, t.border);
+    bool active = ActivePane() == this;
+    SetBkMode(dc, TRANSPARENT);
+    for (int i = 0; i < (int)tabRects_.size(); i++) {
+        RECT r = tabRects_[i];
+        bool cur = i == cur_;
+        if (cur) {
+            Fill(dc, r, t.pane);
+            RECT e = r; e.right = e.left + 1; Fill(dc, e, t.border);
+            e = r; e.left = e.right - 1; Fill(dc, e, t.border);
+            e = r; e.bottom = e.top + (active ? S(2) : 1); Fill(dc, e, active ? t.accent : t.border);
+        } else if (i == tabHot_) {
+            Fill(dc, r, t.hot);
+        }
+        const wstring& p = tabs_[i]->path;
+        RECT ic = r; ic.left += S(10); ic.right = ic.left + S(18);
+        Glyph(dc, IsVirtual(p) ? L"" : p.empty() ? L"" : L"", ic, cur ? t.text : t.dim);
+        RECT tr = r; tr.left = ic.right + S(6); tr.right -= S(32);
+        SelectObject(dc, g_font);
+        SetTextColor(dc, cur ? t.text : t.dim);
+        DrawTextW(dc, DisplayName(p).c_str(), -1, &tr, DT_SINGLELINE | DT_VCENTER | DT_END_ELLIPSIS | DT_NOPREFIX);
+        RECT cr;
+        if ((cur || i == tabHot_) && CloseRect(i, &cr)) {
+            if (i == closeHot_) RoundFill(dc, cr, S(4), RGB(200, 60, 60), RGB(200, 60, 60));
+            Glyph(dc, L"", cr, i == closeHot_ ? RGB(255, 255, 255) : t.dim, g_iconFontSmall);
+        }
     }
-    return -1;
+    if (tabHot_ == -2) RoundFill(dc, plusRect_, S(4), t.hot, t.hot);
+    Glyph(dc, L"", plusRect_, t.dim, g_iconFontSmall);
+    if (g_paneCount > 1) {  // "L / ACTIVE" like the Void design
+        static const wchar_t* k3[] = {L"L", L"M", L"R"};
+        wstring lbl = g_paneCount == 3 ? k3[index_] : (index_ == 0 ? L"L" : L"R");
+        if (active) lbl += L" / ACTIVE";
+        RECT lr = rc; lr.right -= S(12); lr.left = lr.right - S(110);
+        SelectObject(dc, g_fontMono);
+        SetTextColor(dc, active ? t.dim : t.faint);
+        DrawTextW(dc, lbl.c_str(), -1, &lr, DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
+    }
 }
 
 void Pane::TabMenu(int i, POINT screen) {
@@ -216,60 +283,235 @@ void Pane::TabMenu(int i, POINT screen) {
     FocusList();
 }
 
-LRESULT CALLBACK Pane::TabsProc(HWND h, UINT m, WPARAM w, LPARAM l, UINT_PTR, DWORD_PTR ref) {
-    auto self = (Pane*)ref;
+LRESULT CALLBACK Pane::TabsWndProc(HWND h, UINT m, WPARAM w, LPARAM l) {
+    auto self = (Pane*)GetWindowLongPtrW(h, GWLP_USERDATA);
+    if (m == WM_NCCREATE) {
+        self = (Pane*)((CREATESTRUCTW*)l)->lpCreateParams;
+        SetWindowLongPtrW(h, GWLP_USERDATA, (LONG_PTR)self);
+    }
+    if (!self) return DefWindowProcW(h, m, w, l);
     POINT pt{GET_X_LPARAM(l), GET_Y_LPARAM(l)};
     switch (m) {
-    case WM_PAINT: {  // default tabs, then a "×" on each one
-        LRESULT r = DefSubclassProc(h, m, w, l);
-        HDC dc = GetDC(h);
-        HGDIOBJ of = SelectObject(dc, g_iconFontSmall);
-        SetBkMode(dc, TRANSPARENT);
-        for (int i = 0; i < (int)self->tabs_.size(); i++) {
-            RECT cr;
-            if (!self->CloseRect(i, &cr)) continue;
-            if (i == self->closeHot_) {
-                HBRUSH br = CreateSolidBrush(RGB(232, 72, 72));
-                FillRect(dc, &cr, br);
-                DeleteObject(br);
-                SetTextColor(dc, RGB(255, 255, 255));
-            } else {
-                SetTextColor(dc, RGB(120, 120, 120));
-            }
-            DrawTextW(dc, L"", -1, &cr, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-        }
-        SelectObject(dc, of);
-        ReleaseDC(h, dc);
-        return r;
+    case WM_PAINT: {
+        PAINTSTRUCT ps;
+        HDC dc = BeginPaint(h, &ps);
+        RECT rc; GetClientRect(h, &rc);
+        HDC mem = CreateCompatibleDC(dc);
+        HBITMAP bmp = CreateCompatibleBitmap(dc, rc.right, rc.bottom);
+        HGDIOBJ ob = SelectObject(mem, bmp);
+        self->PaintTabs(mem);
+        BitBlt(dc, 0, 0, rc.right, rc.bottom, mem, 0, 0, SRCCOPY);
+        SelectObject(mem, ob);
+        DeleteObject(bmp);
+        DeleteDC(mem);
+        EndPaint(h, &ps);
+        return 0;
     }
+    case WM_ERASEBKGND: return 1;
+    case WM_SIZE: self->LayoutTabs(); return 0;
     case WM_MOUSEMOVE: {
         if (!self->tabTracking_) {
             TRACKMOUSEEVENT t{sizeof(t), TME_LEAVE, h, 0};
             TrackMouseEvent(&t);
             self->tabTracking_ = true;
         }
-        int hot = self->CloseHit(pt);
-        if (hot != self->closeHot_) { self->closeHot_ = hot; InvalidateRect(h, nullptr, FALSE); }
-        break;
+        int hot = self->HitTab(pt);
+        if (hot < 0 && PtInRect(&self->plusRect_, pt)) hot = -2;
+        RECT cr;
+        int ch = hot >= 0 && self->CloseRect(hot, &cr) && PtInRect(&cr, pt) ? hot : -1;
+        if (hot != self->tabHot_ || ch != self->closeHot_) {
+            if (hot != self->tabHot_) SendMessageW(self->tip_, TTM_POP, 0, 0);
+            self->tabHot_ = hot;
+            self->closeHot_ = ch;
+            InvalidateRect(h, nullptr, FALSE);
+        }
+        return 0;
     }
     case WM_MOUSELEAVE:
         self->tabTracking_ = false;
-        if (self->closeHot_ >= 0) { self->closeHot_ = -1; InvalidateRect(h, nullptr, FALSE); }
-        break;
+        self->tabHot_ = self->closeHot_ = -1;
+        InvalidateRect(h, nullptr, FALSE);
+        return 0;
     case WM_LBUTTONDOWN: {
         SetActive(self);
-        int i = self->CloseHit(pt);
-        if (i >= 0) { self->closeHot_ = -1; self->CloseTab(i); self->FocusList(); return 0; }
-        break;
-    }
-    case WM_MBUTTONUP: case WM_LBUTTONDBLCLK: case WM_RBUTTONUP: {
-        TCHITTESTINFO hi{pt};
-        int i = TabCtrl_HitTest(h, &hi);
-        if (m == WM_MBUTTONUP && i >= 0) self->CloseTab(i);
-        if (m == WM_LBUTTONDBLCLK && i < 0) self->NewTab(L"");
-        if (m == WM_RBUTTONUP && i >= 0) { ClientToScreen(h, &pt); self->TabMenu(i, pt); }
+        int i = self->HitTab(pt);
+        RECT cr;
+        if (i >= 0 && self->CloseRect(i, &cr) && PtInRect(&cr, pt)) self->CloseTab(i);
+        else if (i >= 0) self->SwitchTab(i);
+        else if (PtInRect(&self->plusRect_, pt)) self->NewTab(L"");
+        self->FocusList();
         return 0;
     }
+    case WM_LBUTTONDBLCLK:
+        if (self->HitTab(pt) < 0 && !PtInRect(&self->plusRect_, pt)) { self->NewTab(L""); self->FocusList(); }
+        return 0;
+    case WM_MBUTTONUP: {
+        int i = self->HitTab(pt);
+        if (i >= 0) self->CloseTab(i);
+        return 0;
+    }
+    case WM_RBUTTONUP: {
+        int i = self->HitTab(pt);
+        if (i >= 0) { ClientToScreen(h, &pt); self->TabMenu(i, pt); }
+        return 0;
+    }
+    case WM_NOTIFY: {
+        auto nm = (NMHDR*)l;
+        if (nm->code == TTN_GETDISPINFOW) {
+            static wstring tipText;
+            int i = self->tabHot_;
+            tipText = i >= 0 && i < (int)self->tabs_.size()
+                          ? (IsFsPath(self->tabs_[i]->path) ? self->tabs_[i]->path : DisplayName(self->tabs_[i]->path))
+                          : i == -2 ? L"New tab (Ctrl+T)" : L"";
+            ((NMTTDISPINFOW*)l)->lpszText = (LPWSTR)tipText.c_str();
+        }
+        return 0;
+    }
+    }
+    return DefWindowProcW(h, m, w, l);
+}
+
+// ---------- list drawing (custom-drawn themes) ----------
+void Pane::DrawRow(HDC dc, int i) {
+    const Theme& th = *g_theme;
+    Tab* t = T();
+    if (i < 0 || i >= (int)t->items.size()) return;
+    const Item& it = t->items[i];
+    RECT row, client;
+    ListView_GetItemRect(list, i, &row, LVIR_BOUNDS);
+    GetClientRect(list, &client);
+    row.left = client.left;
+    row.right = std::max(row.right, client.right);
+    bool sel = ListView_GetItemState(list, i, LVIS_SELECTED) != 0;
+    Fill(dc, row, sel ? th.sel : i == hotRow_ || i == dropHi_ ? th.hot : th.pane);
+    if (sel) { RECT bar = row; bar.right = bar.left + S(2); Fill(dc, bar, th.selBorder); }
+    if (i == dropHi_) Frame(dc, row, th.accent);
+    if (th.rowLine != th.pane) { RECT ln = row; ln.top = ln.bottom - 1; Fill(dc, ln, th.rowLine); }
+    if (GetFocus() == list && ListView_GetItemState(list, i, LVIS_FOCUSED) && !sel) Frame(dc, row, th.border);
+    bool dim = (it.attr & FILE_ATTRIBUTE_HIDDEN) || (!it.dtype && !it.name.empty() && it.name[0] == L'.') ||
+               (!g_cutSet.empty() && g_cutSet.count(Lower(ItemPath(i))));
+    SetBkMode(dc, TRANSPARENT);
+    for (int sub = 0; sub < (int)cols_.size(); sub++) {
+        int col = cols_[sub];
+        RECT cr;
+        if (sub == 0) {
+            RECT ic;
+            ListView_GetSubItemRect(list, i, 0, LVIR_ICON, &ic);
+            ic.left += S(8); ic.right += S(8);
+            DrawItemIcon(dc, ic, it);
+            ListView_GetSubItemRect(list, i, 0, LVIR_LABEL, &cr);
+            cr.left += S(12);
+        } else {
+            ListView_GetSubItemRect(list, i, sub, LVIR_BOUNDS, &cr);
+            cr.left += S(8);
+        }
+        cr.right -= S(8);
+        bool mono = col == C_MTIME || col == C_CTIME || col == C_ATIME || col == C_SIZE || col == C_FREE || col == C_TOTAL ||
+                    col == C_DELETED || col == C_ATTR || col == C_EXT;
+        SelectObject(dc, mono ? g_fontMono : g_font);
+        SetTextColor(dc, dim ? th.faint : col == C_NAME || sel ? th.text : th.dim);
+        wstring s = CellText(it, col);
+        if (col == C_SIZE && s.empty() && !it.dtype) s = L"—";  // folders: an em dash, like the design
+        DrawTextW(dc, s.c_str(), -1, &cr, DT_SINGLELINE | DT_VCENTER | DT_END_ELLIPSIS | DT_NOPREFIX | (g_colDefs[col].right ? DT_RIGHT : DT_LEFT));
+    }
+}
+
+void Pane::PaintHeader(HWND h, HDC dc) {
+    const Theme& t = *g_theme;
+    RECT rc; GetClientRect(h, &rc);
+    Fill(dc, rc, t.pane);
+    RECT ln = rc; ln.top = ln.bottom - 1;
+    Fill(dc, ln, t.border);
+    SetBkMode(dc, TRANSPARENT);
+    SelectObject(dc, g_fontSmall);
+    int n = Header_GetItemCount(h);
+    for (int k = 0; k < n; k++) {
+        RECT r;
+        Header_GetItemRect(h, k, &r);
+        wchar_t buf[128] = L"";
+        HDITEMW hi{HDI_TEXT | HDI_FORMAT};
+        hi.pszText = buf;
+        hi.cchTextMax = 128;
+        Header_GetItem(h, k, &hi);
+        r.left += k == 0 ? S(16) : S(8);
+        r.right -= S(8);
+        bool right = hi.fmt & HDF_RIGHT;
+        SetTextColor(dc, t.dim);
+        RECT tr = r;
+        DrawTextW(dc, buf, -1, &tr, DT_SINGLELINE | DT_VCENTER | DT_END_ELLIPSIS | (right ? DT_RIGHT : DT_LEFT));
+        if (hi.fmt & (HDF_SORTUP | HDF_SORTDOWN)) {
+            SIZE sz; GetTextExtentPoint32W(dc, buf, lstrlenW(buf), &sz);
+            RECT ar = r;
+            if (right) { ar.right = r.right - sz.cx - S(4); ar.left = ar.right - S(14); }
+            else { ar.left = r.left + sz.cx + S(4); ar.right = ar.left + S(14); }
+            Glyph(dc, hi.fmt & HDF_SORTUP ? L"" : L"", ar, t.dim, g_iconFontSmall);
+            SelectObject(dc, g_fontSmall);
+        }
+    }
+}
+
+LRESULT CALLBACK Pane::HeaderProc(HWND h, UINT m, WPARAM w, LPARAM l, UINT_PTR, DWORD_PTR ref) {
+    auto self = (Pane*)ref;
+    switch (m) {
+    case WM_ERASEBKGND: return 1;
+    case WM_PAINT: {
+        PAINTSTRUCT ps;
+        HDC dc = BeginPaint(h, &ps);
+        RECT rc; GetClientRect(h, &rc);
+        HDC mem = CreateCompatibleDC(dc);
+        HBITMAP bmp = CreateCompatibleBitmap(dc, rc.right, rc.bottom);
+        HGDIOBJ ob = SelectObject(mem, bmp);
+        self->PaintHeader(h, mem);
+        BitBlt(dc, 0, 0, rc.right, rc.bottom, mem, 0, 0, SRCCOPY);
+        SelectObject(mem, ob);
+        DeleteObject(bmp);
+        DeleteDC(mem);
+        EndPaint(h, &ps);
+        return 0;
+    }
+    case HDM_LAYOUT: {  // a taller header, like the design
+        LRESULT r = DefSubclassProc(h, m, w, l);
+        auto hl = (HDLAYOUT*)l;
+        int hh = S(30);
+        hl->prc->top += hh - hl->pwpos->cy;
+        hl->pwpos->cy = hh;
+        return r;
+    }
+    }
+    return DefSubclassProc(h, m, w, l);
+}
+
+LRESULT CALLBACK Pane::ListProc(HWND h, UINT m, WPARAM w, LPARAM l, UINT_PTR, DWORD_PTR ref) {
+    auto self = (Pane*)ref;
+    switch (m) {
+    case WM_MOUSEMOVE: {
+        if (!self->rowTracking_) {
+            TRACKMOUSEEVENT t{sizeof(t), TME_LEAVE, h, 0};
+            TrackMouseEvent(&t);
+            self->rowTracking_ = true;
+        }
+        LVHITTESTINFO hi{};
+        hi.pt = {GET_X_LPARAM(l), GET_Y_LPARAM(l)};
+        int i = ListView_HitTest(h, &hi);
+        if (i != self->hotRow_) {
+            int old = self->hotRow_;
+            self->hotRow_ = i;
+            if (old >= 0) ListView_RedrawItems(h, old, old);
+            if (i >= 0) ListView_RedrawItems(h, i, i);
+        }
+        break;
+    }
+    case WM_MOUSELEAVE:
+        self->rowTracking_ = false;
+        if (self->hotRow_ >= 0) { int old = self->hotRow_; self->hotRow_ = -1; ListView_RedrawItems(h, old, old); }
+        break;
+    case WM_CTLCOLOREDIT:  // the rename box
+        if (g_theme->dark) {
+            SetTextColor((HDC)w, g_theme->text);
+            SetBkColor((HDC)w, g_theme->input);
+            return (LRESULT)ThemeBrush(g_theme->input);
+        }
+        break;
     }
     return DefSubclassProc(h, m, w, l);
 }
@@ -420,8 +662,8 @@ void Pane::ShowItems(bool restore) {
     EnableWindow(btn_[ID_BACK - ID_BACK], !t->back.empty());
     EnableWindow(btn_[ID_FWD - ID_BACK], !t->fwd.empty());
     EnableWindow(btn_[ID_UP - ID_BACK], !t->path.empty());
-    EnableWindow(btn_[ID_NEWFOLDER - ID_BACK], IsFsPath(t->path));
     EnableWindow(btn_[ID_STAR - ID_BACK], IsFsPath(t->path));
+    InvalidateRect(hwnd, nullptr, FALSE);  // title row
 }
 
 void Pane::OnDrivesChanged() {
@@ -432,22 +674,29 @@ void Pane::OnDrivesChanged() {
 void Pane::UpdateStatus() {
     statusPending_ = false;
     Tab* t = T();
-    wstring s;
-    if (t->loading && t->items.empty()) s = L"Loading…";
-    else if (t->err) s = L"⚠  " + ErrText(t->err);
+    statusR_.clear();
+    if (t->loading && t->items.empty()) statusL_ = L"Loading…";
+    else if (t->err) statusL_ = L"⚠  " + ErrText(t->err);
     else {
-        s = std::to_wstring(t->items.size()) + L" items";
+        int dirs = 0;
+        for (auto& it : t->items) if (it.isDir()) dirs++;
+        statusR_ = std::to_wstring(dirs) + L" folders · " + std::to_wstring(t->items.size() - dirs) + L" files";
         int n = ListView_GetSelectedCount(list);
+        statusL_ = std::to_wstring(t->items.size()) + L" items";
         if (n) {
-            s += L"   ·   " + std::to_wstring(n) + L" selected";
+            int first = ListView_GetNextItem(list, -1, LVNI_SELECTED);
+            statusL_ = std::to_wstring(n) + L" selected";
+            if (n == 1 && first < (int)t->items.size()) statusL_ += L" · " + t->items[first].name;
             ULONGLONG sz = 0;
             bool any = false;
             for (int i = -1; (i = ListView_GetNextItem(list, i, LVNI_SELECTED)) >= 0;)
                 if (i < (int)t->items.size() && (!t->items[i].isDir() || !t->items[i].real.empty())) { sz += t->items[i].size; any = true; }
-            if (any) s += L"   ·   " + FmtSize(sz);
+            if (any) statusL_ += L" · " + FmtSize(sz);
         }
     }
-    SetWindowTextW(status_, s.c_str());
+    RECT rc; GetClientRect(hwnd, &rc);
+    rc.top = rc.bottom - S(kStatusH);
+    InvalidateRect(hwnd, &rc, FALSE);
 }
 
 wstring Pane::ItemPath(int i) {
@@ -803,10 +1052,9 @@ bool Pane::DropTarget(POINT screen, HWND under, wstring& dir) {
     }
     ClearDropHi();
     if (under == tabs) {
-        TCHITTESTINFO th{};
-        th.pt = screen;
-        ScreenToClient(tabs, &th.pt);
-        int i = TabCtrl_HitTest(tabs, &th);
+        POINT tp = screen;
+        ScreenToClient(tabs, &tp);
+        int i = HitTab(tp);
         if (i < 0) { hoverTab_ = -1; return false; }
         if (i != hoverTab_) { hoverTab_ = i; hoverTick_ = GetTickCount(); }
         else if (i != cur_ && GetTickCount() - hoverTick_ > 500) SwitchTab(i);
@@ -826,19 +1074,26 @@ void Pane::ClearDropHi() {
 // ---------- notifications ----------
 void Pane::OnNotify(NMHDR* nm, LRESULT& res) {
     Tab* t = T();
-    if (nm->hwndFrom == tabs) {
-        if (nm->code == TCN_SELCHANGE) { SwitchTab(TabCtrl_GetCurSel(tabs)); SetActive(this); }
-        if (nm->code == TTN_GETDISPINFOW) {
-            auto d = (NMTTDISPINFOW*)nm;
-            static wstring tipText;
-            int i = (int)nm->idFrom;
-            tipText = i >= 0 && i < (int)tabs_.size() ? (IsFsPath(tabs_[i]->path) ? tabs_[i]->path : DisplayName(tabs_[i]->path)) : L"";
-            d->lpszText = (LPWSTR)tipText.c_str();
+    if (nm->hwndFrom != list) return;
+    switch (nm->code) {
+    case NM_CUSTOMDRAW: {  // themed rows
+        auto cd = (NMLVCUSTOMDRAW*)nm;
+        if (cd->nmcd.dwDrawStage == CDDS_PREPAINT) { res = CDRF_NOTIFYITEMDRAW | CDRF_NOTIFYPOSTPAINT; return; }
+        if (cd->nmcd.dwDrawStage == CDDS_ITEMPREPAINT) { DrawRow(cd->nmcd.hdc, (int)cd->nmcd.dwItemSpec); res = CDRF_SKIPDEFAULT; }
+        if (cd->nmcd.dwDrawStage == CDDS_POSTPAINT) {  // the visual style draws column lines in the empty area: paint them over
+            RECT rc; GetClientRect(list, &rc);
+            int n = ListView_GetItemCount(list);
+            if (n > 0) {
+                RECT last;
+                if (ListView_GetItemRect(list, n - 1, &last, LVIR_BOUNDS)) rc.top = std::max(rc.top, last.bottom);
+            } else if (HWND hdr = ListView_GetHeader(list)) {
+                RECT hr; GetWindowRect(hdr, &hr);
+                rc.top = hr.bottom - hr.top;
+            }
+            if (rc.top < rc.bottom) Fill(cd->nmcd.hdc, rc, g_theme->pane);
         }
         return;
     }
-    if (nm->hwndFrom != list) return;
-    switch (nm->code) {
     case LVN_GETDISPINFOW: {
         auto d = (NMLVDISPINFOW*)nm;
         int i = d->item.iItem;
@@ -849,7 +1104,7 @@ void Pane::OnNotify(NMHDR* nm, LRESULT& res) {
             wstring s = CellText(it, c);
             lstrcpynW(d->item.pszText, s.c_str(), d->item.cchTextMax);
         }
-        if (d->item.mask & LVIF_IMAGE) d->item.iImage = IconOf(it);
+        if (d->item.mask & LVIF_IMAGE) d->item.iImage = 0;  // icons are custom-drawn
         if (d->item.mask & LVIF_STATE) {
             UINT st = 0;
             if ((it.attr & FILE_ATTRIBUTE_HIDDEN) || (!g_cutSet.empty() && g_cutSet.count(Lower(ItemPath(i))))) st |= LVIS_CUT;
@@ -928,49 +1183,72 @@ void Pane::OnNotify(NMHDR* nm, LRESULT& res) {
     }
 }
 
+void Pane::Command(PaneCmd c) {
+    SetActive(this);
+    switch (c) {
+    case PC_NEWFOLDER: NewFolder(false); return;  // keeps focus in the rename box
+    case PC_CUT: Copy(true, false); break;
+    case PC_COPY: Copy(false, false); break;
+    case PC_PASTE: Paste(Path()); break;
+    case PC_RENAME: {
+        int i = ListView_GetNextItem(list, -1, LVNI_SELECTED);
+        if (i >= 0 && IsFsPath(Path())) { SetFocus(list); ListView_EditLabel(list, i); return; }
+        MessageBeep(MB_ICONWARNING);
+        break;
+    }
+    case PC_DELETE: Delete(GetKeyState(VK_SHIFT) < 0); break;
+    case PC_TERMINAL: if (IsFsPath(Path())) OpenTerminal(Path()); break;
+    }
+    FocusList();
+}
+
 LRESULT Pane::Proc(UINT m, WPARAM w, LPARAM l) {
     switch (m) {
     case WM_SIZE: Layout(); return 0;
-    case WM_PAINT: {
+    case WM_PAINT: {  // navigation row background, title row, status row
+        const Theme& th = *g_theme;
         PAINTSTRUCT ps;
         HDC dc = BeginPaint(hwnd, &ps);
         RECT rc; GetClientRect(hwnd, &rc);
-        FillRect(dc, &rc, GetSysColorBrush(COLOR_WINDOW));
-        bool active = ActivePane() == this && g_paneCount > 1;
-        HBRUSH br = CreateSolidBrush(active ? GetSysColor(COLOR_HIGHLIGHT) : RGB(215, 215, 215));
-        for (int i = 0; i < (active ? S(2) : 1); i++) { FrameRect(dc, &rc, br); InflateRect(&rc, -1, -1); }
-        DeleteObject(br);
+        Fill(dc, rc, th.pane);
+        RECT ln = rc; ln.top = S(kTabH) + S(kNavH) - 1; ln.bottom = ln.top + 1;
+        Fill(dc, ln, th.border);
+        SetBkMode(dc, TRANSPARENT);
+        RECT title = rc; title.left = S(16); title.top = S(kTabH) + S(kNavH); title.bottom = title.top + S(kTitleH); title.right -= S(48);
+        wstring name = DisplayName(Path());
+        SelectObject(dc, g_fontTitle);
+        SetTextColor(dc, th.text);
+        RECT tr = title;
+        DrawTextW(dc, name.c_str(), -1, &tr, DT_SINGLELINE | DT_VCENTER | DT_END_ELLIPSIS | DT_NOPREFIX | DT_CALCRECT);
+        tr.bottom = title.bottom; tr.top = title.top;
+        DrawTextW(dc, name.c_str(), -1, &tr, DT_SINGLELINE | DT_VCENTER | DT_END_ELLIPSIS | DT_NOPREFIX);
+        RECT cnt = title; cnt.left = tr.right + S(10);
+        SelectObject(dc, g_fontMono);
+        SetTextColor(dc, th.faint);
+        wstring items = std::to_wstring(T()->items.size()) + L" items";
+        DrawTextW(dc, items.c_str(), -1, &cnt, DT_SINGLELINE | DT_VCENTER);
+        RECT st = rc; st.top = st.bottom - S(kStatusH);
+        ln = st; ln.bottom = ln.top + 1;
+        Fill(dc, ln, th.border);
+        st.left += S(16); st.right -= S(16);
+        SetTextColor(dc, th.faint);
+        DrawTextW(dc, statusL_.c_str(), -1, &st, DT_SINGLELINE | DT_VCENTER | DT_END_ELLIPSIS | DT_NOPREFIX);
+        DrawTextW(dc, statusR_.c_str(), -1, &st, DT_SINGLELINE | DT_VCENTER | DT_RIGHT);
         EndPaint(hwnd, &ps);
         return 0;
     }
     case WM_ERASEBKGND: return 1;
     case WM_DRAWITEM: DrawButton((DRAWITEMSTRUCT*)l); return TRUE;
-    case WM_CTLCOLORSTATIC:
-        SetBkColor((HDC)w, GetSysColor(COLOR_WINDOW));
-        SetTextColor((HDC)w, RGB(90, 90, 90));
-        return (LRESULT)GetSysColorBrush(COLOR_WINDOW);
     case WM_COMMAND:
-        // only our toolbar buttons; the label-edit box also sends WM_COMMAND (EN_*) through the list
-        if (HIWORD(w) != BN_CLICKED || LOWORD(w) < ID_BACK || LOWORD(w) > ID_PLUS || GetParent((HWND)l) != hwnd) break;
+        // only our buttons; the label-edit box also sends WM_COMMAND (EN_*) through the list
+        if (HIWORD(w) != BN_CLICKED || LOWORD(w) < ID_BACK || LOWORD(w) > ID_STAR || GetParent((HWND)l) != hwnd) break;
         SetActive(this);
         switch (LOWORD(w)) {
         case ID_BACK: GoBack(); break;
         case ID_FWD: GoForward(); break;
         case ID_UP: GoUp(); break;
         case ID_REFRESH: Refresh(); break;
-        case ID_NEWFOLDER: NewFolder(false); return 0;
         case ID_STAR: if (IsFsPath(Path())) { ToggleFavourite(Path()); UpdateStar(); } break;
-        case ID_LAYOUT: {
-            HMENU m = CreatePopupMenu();
-            const wchar_t* items[] = {L"1 pane	Ctrl+1", L"2 panes	Ctrl+2", L"3 panes	Ctrl+3"};
-            for (int i = 0; i < 3; i++) AppendMenuW(m, MF_STRING | (g_paneCount == i + 1 ? MF_CHECKED : 0), i + 1, items[i]);
-            RECT r; GetWindowRect(btn_[6], &r);
-            int n = TrackPopupMenu(m, TPM_RETURNCMD | TPM_RIGHTALIGN, r.right, r.bottom, 0, hwnd, nullptr);
-            DestroyMenu(m);
-            if (n > 0) SetPaneCount(n);
-            return 0;
-        }
-        case ID_PLUS: NewTab(L""); break;
         }
         FocusList();
         return 0;
