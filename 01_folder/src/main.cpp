@@ -376,6 +376,21 @@ static bool IsEditFocus() {
     return !lstrcmpiW(cls, L"Edit");
 }
 
+// Shift + wheel (and tilt wheel / touchpad sideways swipe) scrolls a file list horizontally.
+static bool HorizontalWheel(const MSG& msg) {
+    bool shiftWheel = msg.message == WM_MOUSEWHEEL && (GET_KEYSTATE_WPARAM(msg.wParam) & MK_SHIFT);
+    if (!shiftWheel && msg.message != WM_MOUSEHWHEEL) return false;
+    for (int i = 0; i < g_paneCount; i++) {
+        HWND list = g_panes[i]->list;
+        if (msg.hwnd != list && !IsChild(list, msg.hwnd)) continue;  // the header is a child of the list
+        int delta = GET_WHEEL_DELTA_WPARAM(msg.wParam);
+        int dx = (shiftWheel ? -delta : delta) * S(40) / WHEEL_DELTA;  // wheel down = right, like browsers
+        if (dx) ListView_Scroll(list, dx, 0);
+        return true;
+    }
+    return false;
+}
+
 static bool GlobalKey(MSG& msg) {
     if (DragActive() && msg.message == WM_KEYDOWN) {
         if (msg.wParam == VK_ESCAPE) DragEnd(false);
@@ -593,7 +608,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, LPWSTR cmd, int show) {
 
     MSG msg;
     while (GetMessageW(&msg, nullptr, 0, 0)) {
-        if (GlobalKey(msg)) continue;
+        if (HorizontalWheel(msg) || GlobalKey(msg)) continue;
         TranslateMessage(&msg);
         DispatchMessageW(&msg);
     }

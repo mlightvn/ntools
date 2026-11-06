@@ -1,20 +1,22 @@
+**English** | [Tiếng Việt](README.vi.md) | [简体中文](README.zh-CN.md) | [日本語](README.ja.md)
+
 # nExplorer
 
-Trình quản lý file nhẹ cho Windows, dùng thay Windows Explorer.
+A lightweight file manager for Windows, built as a replacement for Windows Explorer.
 
-- Chỉ có một file `nexplorer.exe` (~650KB), không cần cài đặt, không phụ thuộc DLL ngoài Windows.
-- Không nạp shell extension, không tạo thumbnail. Danh sách file được đọc ở luồng nền, nên folder 100.000 file vẫn mở dưới 1 giây.
-- Cấu hình lưu ở `nexplorer.ini`, nằm cạnh file exe. Muốn reset thì xóa file này.
+- A single `nexplorer.exe` (~800 KB): no installer, no dependencies beyond Windows itself.
+- No shell extensions, no thumbnails. Folders are read on a background thread, so a folder with 100,000 files opens in under a second.
+- Settings live in `nexplorer.ini` next to the exe. Delete it to reset.
 
 ## Build
 
-Cần MSYS2 UCRT64 g++ (`C:\msys64\ucrt64\bin`). Chạy:
+Requires MSYS2 UCRT64 g++ (`C:\msys64\ucrt64\bin`). Run:
 
 ```
 build.bat
 ```
 
-## Giao diện
+## Interface
 
 ```
 ┌ sidebar ─────┐┌ pane 1 ──────────────────┐┌ pane 2 ─────────── ┐
@@ -25,116 +27,119 @@ build.bat
 └──────────────┘└──────────────────────────┘└────────────────────┘
 ```
 
-- Có 1, 2 hoặc 3 pane: bấm nút **Layout** trên toolbar (bên trái nút New folder) hoặc Ctrl+1 / 2 / 3. Kéo thanh chia giữa các pane để đổi độ rộng. Mỗi pane có tab riêng, tab mới mở ở **This PC**.
-- **Tab**: bấm `×` trên tab để đóng (hoặc Ctrl+W, middle-click). Chuột phải lên tab: Close tab, Close other tabs, Close tabs to the right, Duplicate tab, New tab. Double-click vùng trống của thanh tab để mở tab mới.
+- 1, 2 or 3 panes: use the **Layout** button on the toolbar (left of New folder) or Ctrl+1 / 2 / 3. Drag the splitter between panes to resize them. Each pane has its own tabs; a new tab opens at **This PC**.
+- **Tabs**: click the `×` on a tab to close it (or Ctrl+W, middle-click). Right-click a tab for Close tab, Close other tabs, Close tabs to the right, Duplicate tab and New tab. Double-click the empty part of the tab strip to open a new tab.
 - **Address bar**:
-  - Click một đoạn để đi tới đó; click `›` để chọn folder con; `▾` mở lịch sử.
-  - Click vùng trống (hoặc Ctrl+L) để gõ path; có gợi ý khi gõ.
-  - Gõ được `%USERPROFILE%`, `/`, `\\server\share`, path tương đối. Gõ path tới một file thì mở folder chứa nó và chọn sẵn file.
+  - Click a segment to go there; click `›` to pick a subfolder; `▾` opens the history.
+  - Click the empty area (or press Ctrl+L) to type a path, with suggestions as you type.
+  - Accepts `%USERPROFILE%`, `/`, `\\server\share` and relative paths. Typing the path of a file opens its folder with the file selected.
 - **Sidebar**:
-  - Favourites là folder do bạn ghim. Ghim bằng ☆, Ctrl+D, menu chuột phải, hoặc kéo folder thả vào nhóm Favourites.
-  - Rê chuột lên một mục để hiện nút ▲ ▼ đổi thứ tự. Chuột phải lên một mục để đổi tên, xóa, Move up / Move down.
-  - Quick access gồm các folder hệ thống, **Recycle Bin**, và 8 folder bạn dùng nhiều nhất gần đây.
-- **Recycle Bin** (sidebar, hoặc gõ `Recycle Bin` vào address bar): gộp rác của mọi ổ trong máy, các cột Tên / Vị trí gốc / Ngày xóa / Dung lượng / Loại.
-  - Del hoặc Shift+Del: xóa vĩnh viễn ngay (có hỏi xác nhận).
-  - Chuột phải: Restore (trả về đúng chỗ cũ; trùng tên thì giữ cả hai), Delete permanently, Empty Recycle Bin.
-  - Kéo file thả lên Recycle Bin (sidebar / address bar) = đưa vào thùng rác.
-- **Profile** (nút ở đầu sidebar, hoặc Ctrl+P):
-  - Mỗi profile lưu: số pane, độ rộng các pane, pane đang active, và trong từng pane là các tab (thứ tự, path, tab đang chọn).
-  - Layout **chỉ được lưu khi bạn bấm Save (Ctrl+S)**. Mở app sẽ vào profile dùng gần nhất, với layout đã lưu; profile chưa lưu lần nào thì mọi pane ở This PC.
-  - Dấu ● cạnh tên profile (và trên thanh tiêu đề) nghĩa là layout hiện tại khác bản đã lưu. Khi chuyển profile mà còn thay đổi chưa lưu, app sẽ hỏi có lưu không.
-  - Menu: chọn profile để chuyển; Save profile; Save as new profile; Rename; Delete; Reset layout to This PC (chỉ đổi layout đang hiển thị, chưa lưu).
-  - Kích thước cửa sổ, cột, Favourites, Quick access là cài đặt chung, không thuộc profile.
-- **Cột**: chuột phải lên tiêu đề cột để bật/tắt Date created, Date accessed, Extension, Attributes. Click tiêu đề cột để sắp xếp.
+  - Favourites are folders you pin: with ☆, Ctrl+D, the context menu, or by dropping a folder onto the Favourites group.
+  - Hover an item to show ▲ ▼ buttons for reordering. Right-click an item to rename, remove, or Move up / Move down.
+  - Quick access lists the system folders, the **Recycle Bin**, and the 8 folders you used most recently.
+- **Recycle Bin** (sidebar, or type `Recycle Bin` in the address bar): deleted items from every drive, with Name / Original location / Date deleted / Size / Type columns.
+  - Del or Shift+Del: delete permanently (asks for confirmation).
+  - Right-click: Restore (back to the original location; if the name is taken, both are kept), Delete permanently, Empty Recycle Bin.
+  - Dropping files onto the Recycle Bin (sidebar / address bar) recycles them.
+- **Profiles** (button at the top of the sidebar, or Ctrl+P):
+  - A profile stores the number of panes, their widths, the active pane, and for each pane its tabs (order, path, selected tab).
+  - The layout is **saved only when you press Save (Ctrl+S)**. The app opens the last used profile with its saved layout; a profile that was never saved shows This PC in every pane.
+  - A ● next to the profile name (and in the title bar) means the current layout differs from the saved one. Switching profiles with unsaved changes asks whether to save them.
+  - Menu: pick a profile to switch; Save profile; Save as new profile; Rename; Delete; Reset layout to This PC (changes only the current view, not the saved profile).
+  - Window size, columns, Favourites and Quick access are global settings, not part of a profile.
+- **Columns**: right-click a column header to show or hide Date created, Date accessed, Extension and Attributes. Click a header to sort.
 
-## Phím tắt
+## Keyboard shortcuts
 
-| Phím | Chức năng |
+| Keys | Action |
 |---|---|
-| Mũi tên, Home/End, PgUp/PgDn, gõ tên | Di chuyển / nhảy tới file |
-| Enter, Ctrl+Enter | Mở (folder mở trong app, file mở bằng app mặc định), mở folder trong tab mới |
-| Backspace, Alt+← / Alt+→ / Alt+↑ | Back, Back / Forward / Lên thư mục cha |
+| Arrows, Home/End, PgUp/PgDn, type a name | Move / jump to a file |
+| Enter, Ctrl+Enter | Open (folders open in the app, files in their default app); open a folder in a new tab |
+| Backspace, Alt+← / Alt+→ / Alt+↑ | Back; Back / Forward / Up one level |
 | Ctrl+C / Ctrl+X / Ctrl+V | Copy / Cut / Paste |
-| Ctrl+Shift+C | Copy as link (chỉ hyperlink + text path) |
-| Del / Shift+Del | Xóa vào Recycle Bin / Xóa vĩnh viễn |
-| F2 | Đổi tên |
-| Ctrl+Shift+N / Ctrl+Alt+N | Folder mới / file text mới |
-| Ctrl+T / Ctrl+Shift+T / Ctrl+W / Ctrl+Tab | Tab mới (cùng folder) / Tab mới (This PC) / Đóng tab / Tab kế |
-| Tab, F6 | Chuyển sang pane khác |
-| Ctrl+1 / 2 / 3 | 1 / 2 / 3 pane |
-| Ctrl+L, Alt+D, F4 | Sửa address bar |
-| Ctrl+S / Ctrl+P | Lưu layout vào profile hiện tại / Mở menu profile |
-| Ctrl+D | Ghim / bỏ ghim folder hiện tại |
-| Ctrl+B | Ẩn/hiện sidebar |
-| Ctrl+H | Hiện/ẩn file ẩn |
-| F5, Ctrl+A, Alt+Enter | Refresh, Chọn tất cả, Properties |
+| Ctrl+Shift+C | Copy as link (hyperlink + path text only) |
+| Del / Shift+Del | Move to Recycle Bin / Delete permanently |
+| F2 | Rename |
+| Ctrl+Shift+N / Ctrl+Alt+N | New folder / New text file |
+| Ctrl+T / Ctrl+Shift+T / Ctrl+W / Ctrl+Tab | New tab (same folder) / New tab (This PC) / Close tab / Next tab |
+| Tab, F6 | Switch to the other pane |
+| Ctrl+1 / 2 / 3 | 1 / 2 / 3 panes |
+| Ctrl+L, Alt+D, F4 | Edit the address bar |
+| Ctrl+S / Ctrl+P | Save the layout to the current profile / Open the profile menu |
+| Ctrl+D | Pin / unpin the current folder |
+| Ctrl+B | Show / hide the sidebar |
+| Ctrl+H | Show / hide hidden files |
+| F5, Ctrl+A, Alt+Enter | Refresh, Select all, Properties |
 
-Chuột: double-click để mở; middle-click lên tab để đóng tab; middle-click hoặc Ctrl+click lên mục ở sidebar để mở trong tab mới.
+Mouse:
+- Double-click to open; middle-click a tab to close it; middle-click or Ctrl+click a sidebar item to open it in a new tab.
+- **Shift + mouse wheel** scrolls the file list horizontally. A tilt wheel and horizontal touchpad swipes do too.
 
-## Kéo thả
+## Drag and drop
 
-- Kéo giữa các pane, lên một folder trong danh sách, lên tab (giữ 0,5 giây thì tự chuyển sang tab đó), lên một đoạn của address bar, hoặc lên sidebar: mặc định là **Move**; giữ **Ctrl** thì là **Copy**. Esc để hủy.
-- File kéo từ Explorer hoặc app khác thả vào app sẽ được copy (giữ Shift thì move).
+- Drag between panes, onto a folder in the list, onto a tab (hold 0.5 s to switch to it), onto an address bar segment, or onto the sidebar: the default is **Move**; hold **Ctrl** to **Copy**. Press Esc to cancel.
+- Files dropped from Explorer or other apps are copied (hold Shift to move).
 
 ## Clipboard
 
-Ctrl+C ghi cùng lúc nhiều định dạng, nên mỗi nơi dán sẽ ra kết quả phù hợp:
+Ctrl+C puts several formats on the clipboard at once, so each target gets what it understands:
 
-| Dán vào | Kết quả |
+| Paste into | Result |
 |---|---|
-| Explorer, app này | File/folder thật |
-| Excel, Word, Outlook | Hyperlink hiện **tên**, trỏ tới đúng path (Excel đặt mỗi mục vào một dòng) |
-| Notepad, ô text | Path đầy đủ |
-| Address bar của app | Path đầy đủ; Enter để đi tới |
+| Explorer, this app | The actual files / folders |
+| Excel, Word, Outlook | A hyperlink showing the **name** and pointing to the full path (Excel puts each item on its own row) |
+| Notepad, text boxes | The full path |
+| The app's address bar | The full path; press Enter to go there |
 
-Đã kiểm tra với Office 2019 (Excel, Word): Ctrl+C thường đã dán ra hyperlink, cả với tên tiếng Việt. Ctrl+Shift+C dùng khi bạn chỉ muốn link, không kèm file thật.
+Tested with Office 2019 (Excel, Word): a plain Ctrl+C already pastes as hyperlinks, including non-ASCII names. Use Ctrl+Shift+C when you want only the link and no file objects.
 
-## Nén file / Eject ổ đĩa
+## Archives / ejecting drives
 
-- **Compress to ZIP file** (menu chuột phải): app tự nén, không cần phần mềm ngoài. Chạy nền, có tiến trình và Cancel.
-  - Tên file tiếng Việt được giữ đúng (UTF-8); hỗ trợ file và archive lớn hơn 4GB (ZIP64).
-  - Video, ảnh, file đã nén (mp4, jpg, zip…) được lưu nguyên không nén lại, cho nhanh.
-  - Tên archive: `<tên item đầu tiên>.zip` ngay trong folder hiện tại (trùng tên thì thêm "(2)").
-- **Add to .7z archive (7-Zip)**: dùng 7-Zip đã cài trên máy, 7-Zip hiện cửa sổ tiến trình riêng. Nếu chưa cài 7-Zip, mục này bị mờ.
-- **Add to .7z with password…**: mã hóa AES-256; tùy chọn mã hóa cả tên file (không có mật khẩu thì không xem được danh sách file). Nếu mật khẩu có ký tự có dấu, app hỏi lại, vì bộ gõ tiếng Việt (Unikey, EVKey…) hay tự đổi "a1"/"as" thành "á".
-- **Extract here / Extract to "<tên>\"** (chuột phải lên .zip, .7z, .rar, .tar, .gz, .tgz, .bz2, .xz): dùng 7-Zip (tự hỏi mật khẩu nếu file có mật khẩu); không có 7-Zip thì dùng `tar.exe` có sẵn trong Windows. "Extract to" tạo folder riêng; trùng tên thì thêm "(2)".
-- **Eject** (chuột phải lên ổ USB / ổ cứng gắn ngoài, trong This PC hoặc sidebar): các pane đang mở ổ đó tự quay về This PC rồi app yêu cầu Windows "Safely Remove". Nếu ổ đang bị chương trình khác dùng, app báo tên chương trình đó.
+- **Compress to ZIP file** (context menu): built-in, no external software. Runs in the background with progress and Cancel.
+  - Non-ASCII file names are kept (UTF-8); files and archives over 4 GB are supported (ZIP64).
+  - Videos, images and already-compressed files (mp4, jpg, zip…) are stored as-is for speed.
+  - The archive is named `<first item>.zip` in the current folder ("(2)" is added if the name is taken).
+- **Add to .7z archive (7-Zip)**: uses the installed 7-Zip, which shows its own progress window. Greyed out when 7-Zip is not installed.
+- **Add to .7z with password…**: AES-256 encryption, optionally encrypting the file names too (the file list can't be seen without the password). If the password contains accented characters, the app asks again, because input methods such as Vietnamese typing tools (Unikey, EVKey…) often turn keystrokes like "a1"/"as" into "á".
+- **Extract here / Extract to "<name>\"** (right-click a .zip, .7z, .rar, .tar, .gz, .tgz, .bz2, .xz): uses 7-Zip (it asks for the password of protected archives); without 7-Zip, the `tar.exe` that ships with Windows is used. "Extract to" creates a separate folder ("(2)" is added if the name is taken).
+- **Eject** (right-click a USB stick / external drive in This PC or the sidebar): panes showing that drive go back to This PC, then the app asks Windows to "Safely Remove" it. If another program is using the drive, the app names that program.
 
 ## Copy / Move / Delete
 
-- Chạy ở luồng nền. Cửa sổ tiến trình chỉ hiện nếu thao tác kéo dài hơn 0,5 giây, gồm số item, MB, tốc độ và nút Cancel.
-- Khi trùng tên: Replace / Skip / Keep both ("a (2).txt"), có ô "Do this for all conflicts". Dán vào chính folder nguồn thì tạo "a - Copy.txt".
-- Move trong cùng ổ đĩa là đổi tên (tức thì); khác ổ thì copy rồi xóa nguồn.
-- **Del (Recycle Bin)**: trên ổ NTFS trong máy, item được chuyển thẳng vào `$Recycle.Bin` của ổ đó (chỉ là đổi tên), nên gần như tức thì dù folder có hàng trăm nghìn file. Vẫn Restore được bình thường từ Recycle Bin. Ổ USB FAT/exFAT, ổ mạng, hoặc khi có file bên trong đang bị mở thì dùng cách của Windows như cũ.
-- **Shift+Del (xóa vĩnh viễn)**: xóa kiểu `rm -rf`, tốc độ ngang `rmdir /s /q`. File bị khóa được bỏ qua, xóa xong mới báo một lần danh sách những file không xóa được.
-- Hủy giữa chừng sẽ xóa file đang copy dở.
+- Runs in the background. The progress window appears only if an operation takes longer than 0.5 s and shows items, MB, speed and a Cancel button.
+- Name conflicts: Replace / Skip / Keep both ("a (2).txt"), with a "Do this for all conflicts" option. Pasting into the source folder creates "a - Copy.txt".
+- A move within the same drive is a rename (instant); across drives it copies and then deletes the source.
+- **Del (Recycle Bin)**: on internal NTFS drives, items are moved straight into that drive's `$Recycle.Bin` (just a rename), so it is near-instant even for folders with hundreds of thousands of files. Restore works as usual from the Recycle Bin. USB drives with FAT/exFAT, network drives, or folders with open files fall back to the Windows method.
+- **Shift+Del (permanent delete)**: `rm -rf`-style, as fast as `rmdir /s /q`. Locked files are skipped, and the files that could not be deleted are reported once at the end.
+- Cancelling a copy removes the partially copied file.
 
 ## Checklist
 
-Đã kiểm tra:
+Tested:
 
-- [x] Folder 100.000 file, điều hướng bằng phím, gõ tên để nhảy
-- [x] Address bar: breadcrumb, menu `›`, gợi ý, path sai viền đỏ, dán path
-- [x] Copy / Cut / Paste giữa pane, trùng tên, tiến trình, Cancel
-- [x] Kéo thả giữa pane (Move / Ctrl = Copy); kéo file từ Explorer thả vào app
-- [x] Kéo thanh chia giữa các pane
-- [x] Clipboard sang Excel / Word (hyperlink tên → path, cả tên tiếng Việt)
-- [x] Folder mới, F2, Del / Shift+Del
-- [x] Favourites (ghim, ▲ ▼), Quick access, tab (×, menu chuột phải), 1/2/3 pane, chọn cột
-- [x] Nén ZIP (tên tiếng Việt, folder lồng nhau / rỗng, file 4,5GB → ZIP64; kiểm tra bằng 7-Zip và .NET), Add to .7z, nút Layout, mục Eject chỉ hiện với ổ gắn ngoài
-- [x] Xóa nhanh: Del 20.000 file vào Recycle Bin rồi Restore đủ 20.000 file; Shift+Del 20.000 file với 1 file bị khóa (chỉ file đó còn lại, báo 1 lần)
-- [x] Recycle Bin trong app: hiện đúng item (cả item do Windows xóa), Restore về chỗ cũ, xóa vĩnh viễn (xóa cả cặp $R + $I)
-- [x] 7z có mật khẩu (7zAES, ẩn tên file; mở sai mật khẩu bị từ chối), Extract to folder riêng với file có mật khẩu (7-Zip hỏi mật khẩu)
-- [x] Profile: mặc định This PC, Ctrl+S lưu rồi mở lại app ra đúng layout, Save as / Rename / Delete, chuyển profile, hỏi khi còn thay đổi chưa lưu
+- [x] A folder with 100,000 files, keyboard navigation, type-to-jump
+- [x] Address bar: breadcrumb, `›` menu, suggestions, red border for invalid paths, pasting a path
+- [x] Copy / Cut / Paste between panes, conflicts, progress, Cancel
+- [x] Drag and drop between panes (Move / Ctrl = Copy); dropping files from Explorer into the app
+- [x] Dragging the splitter between panes
+- [x] Clipboard to Excel / Word (name → path hyperlinks, including non-ASCII names)
+- [x] New folder, F2, Del / Shift+Del
+- [x] Favourites (pin, ▲ ▼), Quick access, tabs (×, context menu), 1/2/3 panes, column chooser
+- [x] ZIP compression (non-ASCII names, nested / empty folders, a 4.5 GB file → ZIP64; verified with 7-Zip and .NET), Add to .7z, the Layout button, Eject shown only for external drives
+- [x] Fast delete: Del of 20,000 files to the Recycle Bin and Restore of all 20,000; Shift+Del of 20,000 files with one locked file (only that file remains, reported once)
+- [x] Recycle Bin view: shows the right items (including those deleted by Windows), Restore to the original location, permanent delete (removes both $R and $I)
+- [x] Password-protected 7z (7zAES, hidden file names; wrong password rejected), Extract to folder with a protected archive (7-Zip asks for the password)
+- [x] Profiles: This PC by default, Ctrl+S then reopening restores the layout, Save as / Rename / Delete, switching profiles, prompt for unsaved changes
+- [x] Shift + wheel scrolls horizontally; the plain wheel still scrolls vertically; tilt wheel / touchpad scroll horizontally
 
-Chưa làm (giới hạn hiện tại):
+Not done yet (current limitations):
 
-- [ ] Kéo file từ app ra app khác (chiều ngược lại thì được)
-- [ ] Kéo thả để sắp xếp Favourites (hiện dùng nút ▲ ▼ thay thế)
-- [ ] Hyperlink trong Excel với tên file có `#` (Excel coi `#` là "vị trí trong file"; Word không bị)
-- [ ] Properties cho nhiều item cùng lúc (hiện chỉ item đầu tiên)
-- [ ] Test với ổ mạng bị ngắt và khi đổi DPI giữa hai màn hình
-- [ ] Profile chưa lưu lịch sử Back/Forward của từng tab
-- [ ] Test Eject thật trên một ổ USB (mới kiểm tra menu và nhận diện ổ gắn ngoài)
-- [ ] Test giải nén bằng `tar.exe` (chỉ dùng khi máy không có 7-Zip; máy hiện tại có 7-Zip)
-- [ ] Test "Empty Recycle Bin" thật (chưa chạy để không xóa rác thật của bạn; dùng cùng cơ chế với Delete permanently đã test)
+- [ ] Dragging files from the app into other apps (the other direction works)
+- [ ] Reordering Favourites by drag and drop (the ▲ ▼ buttons are used instead)
+- [ ] Excel hyperlinks for file names containing `#` (Excel treats `#` as "a location inside the file"; Word is fine)
+- [ ] Properties for several items at once (currently only the first item)
+- [ ] Testing with disconnected network drives and DPI changes between monitors
+- [ ] Profiles don't store each tab's Back/Forward history
+- [ ] Testing Eject on a real USB drive (only the menu and external-drive detection were tested)
+- [ ] Testing extraction with `tar.exe` (used only when 7-Zip is not installed)
+- [ ] Testing "Empty Recycle Bin" for real (not run on the dev machine to keep its Recycle Bin; it uses the same code path as the tested Delete permanently)
