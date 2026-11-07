@@ -4,7 +4,7 @@
 
 Trình quản lý file nhẹ cho Windows, dùng thay Windows Explorer.
 
-- Chỉ có một file `nexplorer.exe` (~800KB), không cần cài đặt, không phụ thuộc DLL ngoài Windows.
+- Chỉ có một file `nexplorer.exe` (~1 MB), không cần cài đặt, không phụ thuộc DLL ngoài Windows.
 - Không nạp shell extension, không tạo thumbnail. Danh sách file được đọc ở luồng nền, nên folder 100.000 file vẫn mở dưới 1 giây.
 - Cấu hình lưu ở `nexplorer.ini`, nằm cạnh file exe. Muốn reset thì xóa file này.
 
@@ -177,3 +177,7 @@ Chưa làm (giới hạn hiện tại):
 - [ ] Test Eject thật trên một ổ USB (mới kiểm tra menu và nhận diện ổ gắn ngoài)
 - [ ] Test giải nén bằng `tar.exe` (chỉ dùng khi máy không có 7-Zip)
 - [ ] Test "Empty Recycle Bin" thật (chưa chạy trên máy dev để giữ rác thật; dùng cùng cơ chế với Delete permanently đã test)
+
+## Giấy phép
+
+nExplorer 0.2.0 là phần mềm nguồn mở theo [giấy phép MIT](../LICENSE). Copyright (c) 2026 Nguyen Ngoc Nam.

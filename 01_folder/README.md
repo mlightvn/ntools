@@ -4,7 +4,7 @@
 
 A lightweight file manager for Windows, built as a replacement for Windows Explorer.
 
-- A single `nexplorer.exe` (~800 KB): no installer, no dependencies beyond Windows itself.
+- A single `nexplorer.exe` (~1 MB): no installer, no dependencies beyond Windows itself.
 - No shell extensions, no thumbnails. Folders are read on a background thread, so a folder with 100,000 files opens in under a second.
 - Settings live in `nexplorer.ini` next to the exe. Delete it to reset.
 
@@ -177,3 +177,7 @@ Not done yet (current limitations):
 - [ ] Testing Eject on a real USB drive (only the menu and external-drive detection were tested)
 - [ ] Testing extraction with `tar.exe` (used only when 7-Zip is not installed)
 - [ ] Testing "Empty Recycle Bin" for real (not run on the dev machine to keep its Recycle Bin; it uses the same code path as the tested Delete permanently)
+
+## License
+
+nExplorer 0.2.0 is open source under the [MIT License](../LICENSE). Copyright (c) 2026 Nguyen Ngoc Nam.

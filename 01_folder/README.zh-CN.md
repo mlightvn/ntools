@@ -4,7 +4,7 @@
 
 一款轻量级的 Windows 文件管理器，用来替代 Windows 资源管理器（Explorer）。
 
-- 只有一个 `nexplorer.exe`（约 800 KB），无需安装，除 Windows 自身外不依赖任何 DLL。
+- 只有一个 `nexplorer.exe`（约 1 MB），无需安装，除 Windows 自身外不依赖任何 DLL。
 - 不加载 Shell 扩展，不生成缩略图。文件夹内容在后台线程读取，因此含 100,000 个文件的文件夹也能在 1 秒内打开。
 - 设置保存在 exe 旁边的 `nexplorer.ini` 中。删除该文件即可重置。
 
@@ -177,3 +177,7 @@ Ctrl+C 会同时写入多种格式，因此粘贴到不同位置会得到合适�
 - [ ] 在真实 U 盘上测试 Eject（目前只测试了菜单和外接磁盘识别）
 - [ ] 测试用 `tar.exe` 解压（仅在未安装 7-Zip 时使用）
 - [ ] 实际测试 "Empty Recycle Bin"（为保留开发机回收站中的内容而未运行；它与已测试的 Delete permanently 使用相同的代码）
+
+## 许可证
+
+nExplorer 0.2.0 是采用 [MIT 许可证](../LICENSE) 的开源软件。Copyright (c) 2026 Nguyen Ngoc Nam.
