@@ -65,6 +65,7 @@ void Pane::Create(HWND parent, int index) {
     ListView_SetExtendedListViewStyle(list, LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER | LVS_EX_HEADERDRAGDROP);
     ListView_SetCallbackMask(list, LVIS_CUT | LVIS_DROPHILITED);
     SetWindowSubclass(list, ListProc, 1, (DWORD_PTR)this);
+    ThemedScrollbars(list, 0);
     SetWindowSubclass(ListView_GetHeader(list), HeaderProc, 1, (DWORD_PTR)this);
     ApplyTheme();
 }
@@ -89,21 +90,24 @@ void Pane::ApplyTheme() {
 }
 
 // ---------- layout / painting ----------
+// the frame around the pane (bright accent when the pane is active); the content sits inside it
+static int Fr() { return S(2); }
+
 void Pane::Layout() {
     if (!list) return;
     RECT rc; GetClientRect(hwnd, &rc);
-    int w = rc.right, bw = S(32), bh = S(30);
-    MoveWindow(tabs, 0, 0, w, S(kTabH), TRUE);
+    int f = Fr(), x0 = f, w = rc.right - 2 * f, bw = S(32), bh = S(30);
+    MoveWindow(tabs, x0, f, w, S(kTabH), TRUE);
     LayoutTabs();
-    int y = S(kTabH), ny = y + (S(kNavH) - bh) / 2;
-    for (int i = 0; i < 3; i++) MoveWindow(btn_[i], S(8) + i * bw, ny, bw - S(2), bh, TRUE);
-    MoveWindow(btn_[3], w - S(8) - bw, ny, bw - S(2), bh, TRUE);  // refresh
+    int y = f + S(kTabH), ny = y + (S(kNavH) - bh) / 2;
+    for (int i = 0; i < 3; i++) MoveWindow(btn_[i], x0 + S(8) + i * bw, ny, bw - S(2), bh, TRUE);
+    MoveWindow(btn_[3], x0 + w - S(8) - bw, ny, bw - S(2), bh, TRUE);  // refresh
     int ax = S(8) + 3 * bw + S(8);
-    MoveWindow(addr.hwnd, ax, ny, std::max(S(40), w - S(14) - bw - ax), bh, TRUE);
+    MoveWindow(addr.hwnd, x0 + ax, ny, std::max(S(40), w - S(14) - bw - ax), bh, TRUE);
     y += S(kNavH);
-    MoveWindow(btn_[4], w - S(8) - bw, y + (S(kTitleH) - bh) / 2, bw - S(2), bh, TRUE);  // star
+    MoveWindow(btn_[4], x0 + w - S(8) - bw, y + (S(kTitleH) - bh) / 2, bw - S(2), bh, TRUE);  // star
     y += S(kTitleH);
-    MoveWindow(list, 0, y, w, std::max(0, (int)rc.bottom - S(kStatusH) - y), TRUE);
+    MoveWindow(list, x0, y, w, std::max(0, (int)rc.bottom - f - S(kStatusH) - y), TRUE);
 }
 
 void Pane::DrawButton(DRAWITEMSTRUCT* d) {
@@ -755,10 +759,9 @@ void Pane::UpdateStatus() {
         }
         if (t->searchLimited) statusR_ += L" · stopped at 200,000 results";
         RECT rc; GetClientRect(hwnd, &rc);
-        rc.bottom = S(kTabH) + S(kNavH) + S(kTitleH);
+        rc.bottom = Fr() + S(kTabH) + S(kNavH) + S(kTitleH);
         rc.top = rc.bottom - S(kTitleH);
         InvalidateRect(hwnd, &rc, FALSE);  // the title shows the count too
-
     }
     else if (t->loading && t->items.empty()) statusL_ = L"Loading…";
     else if (t->err) statusL_ = L"⚠  " + ErrText(t->err);
@@ -780,7 +783,7 @@ void Pane::UpdateStatus() {
         }
     }
     RECT rc; GetClientRect(hwnd, &rc);
-    rc.top = rc.bottom - S(kStatusH);
+    rc.top = rc.bottom - S(kStatusH) - Fr();
     InvalidateRect(hwnd, &rc, FALSE);
 }
 
@@ -1308,12 +1311,14 @@ LRESULT Pane::Proc(UINT m, WPARAM w, LPARAM l) {
         const Theme& th = *g_theme;
         PAINTSTRUCT ps;
         HDC dc = BeginPaint(hwnd, &ps);
-        RECT rc; GetClientRect(hwnd, &rc);
-        Surface(dc, hwnd, rc, th.pane);
-        RECT ln = rc; ln.top = S(kTabH) + S(kNavH) - 1; ln.bottom = ln.top + 1;
+        RECT outer; GetClientRect(hwnd, &outer);
+        Surface(dc, hwnd, outer, th.pane);
+        RECT rc = outer;  // content area inside the frame
+        InflateRect(&rc, -Fr(), -Fr());
+        RECT ln = rc; ln.top = rc.top + S(kTabH) + S(kNavH) - 1; ln.bottom = ln.top + 1;
         Fill(dc, ln, th.border);
         SetBkMode(dc, TRANSPARENT);
-        RECT title = rc; title.left = S(16); title.top = S(kTabH) + S(kNavH); title.bottom = title.top + S(kTitleH); title.right -= S(48);
+        RECT title = rc; title.left = rc.left + S(16); title.top = rc.top + S(kTabH) + S(kNavH); title.bottom = title.top + S(kTitleH); title.right -= S(48);
         wstring name = DisplayName(Path());
         if (Hud() && !name.empty()) CharUpperBuffW(&name[0], (DWORD)name.size());
         SelectObject(dc, g_fontTitle);
@@ -1349,6 +1354,14 @@ LRESULT Pane::Proc(UINT m, WPARAM w, LPARAM l) {
         SetTextColor(dc, th.faint);
         DrawTextW(dc, statusL_.c_str(), -1, &st, DT_SINGLELINE | DT_VCENTER | DT_END_ELLIPSIS | DT_NOPREFIX);
         DrawTextW(dc, statusR_.c_str(), -1, &st, DT_SINGLELINE | DT_VCENTER | DT_RIGHT);
+        // frame: the active pane gets a bright accent outline, the others a faint one
+        bool active = ActivePane() == this && g_paneCount > 1;
+        COLORREF fc = active ? th.accent : th.border;
+        int f = active ? Fr() : 1;
+        Fill(dc, {outer.left, outer.top, outer.right, outer.top + f}, fc);
+        Fill(dc, {outer.left, outer.bottom - f, outer.right, outer.bottom}, fc);
+        Fill(dc, {outer.left, outer.top, outer.left + f, outer.bottom}, fc);
+        Fill(dc, {outer.right - f, outer.top, outer.right, outer.bottom}, fc);
         EndPaint(hwnd, &ps);
         return 0;
     }

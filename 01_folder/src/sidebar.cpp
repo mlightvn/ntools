@@ -781,6 +781,7 @@ void SidebarCreate(HWND parent) {
                              TVS_EDITLABELS | TVS_NOHSCROLL | TVS_TRACKSELECT, 0, 0, 10, 10, g_side, nullptr, g_inst, nullptr);
     TreeView_SetExtendedStyle(g_tree, TVS_EX_DOUBLEBUFFER, TVS_EX_DOUBLEBUFFER);
     SetWindowSubclass(g_tree, TreeProc, 1, 0);
+    ThemedScrollbars(g_tree, 1);
 
     const KNOWNFOLDERID* ids[] = {&FOLDERID_Desktop, &FOLDERID_Downloads, &FOLDERID_Documents, &FOLDERID_Pictures, &FOLDERID_Videos, &FOLDERID_Music};
     const wchar_t* glyphs[] = {L"\uE7F4", L"\uE896", L"\uE8A5", L"\uEB9F", L"\uE714", L"\uE8D6"};

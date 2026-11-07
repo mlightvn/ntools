@@ -48,6 +48,9 @@ void HudCorners(HDC dc, const RECT& r, int which = 3);
 void HudGrid(HDC dc, HWND hwnd, const RECT& r);             // the faint 40 px grid of the Nexus background
 wstring HudLabel(const wstring& s);                         // "QUICK ACCESS" -> "// QUICK ACCESS" with the Nexus look
 
+// Theme-coloured scrollbars laid over a list / tree's native ones (scrollbar.cpp); role 0 = pane, 1 = sidebar background
+void ThemedScrollbars(HWND target, int role);
+
 // Backgrounds (backdrop.cpp): a picture behind the UI, the Glass theme, window opacity
 void Surface(HDC dc, HWND hwnd, const RECT& r, COLORREF c);  // fill r (client coords of hwnd); the picture shows through
 bool BackdropActive();

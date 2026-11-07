@@ -277,6 +277,7 @@ LRESULT CALLBACK MgrProc(HWND h, UINT m, WPARAM w, LPARAM l) {
                                     TVS_EDITLABELS | TVS_SHOWSELALWAYS | TVS_FULLROWSELECT, 0, 0, 10, 10, h, (HMENU)100, g_inst, nullptr);
         TreeView_SetExtendedStyle(g_mgrTree, TVS_EX_DOUBLEBUFFER, TVS_EX_DOUBLEBUFFER);
         SetWindowSubclass(g_mgrTree, MgrTreeProc, 1, 0);
+        ThemedScrollbars(g_mgrTree, 0);
         for (int i = 1; i < B_COUNT; i++)
             g_mgrBtn[i] = CreateWindowW(L"BUTTON", L"", WS_CHILD | WS_VISIBLE | BS_OWNERDRAW, 0, 0, 10, 10, h, (HMENU)(INT_PTR)i, g_inst, nullptr);
         MgrApplyTheme();

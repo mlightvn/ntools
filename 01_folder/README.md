@@ -36,7 +36,7 @@ build.bat
   - **Background picture…** (same menu): a picture of your choice behind the whole window, with any theme; panels stay readable on top of it. With Glass, the picture is blurred instead of the wallpaper. **Remove background picture** turns it off.
   - **Window opacity** (same menu): 100% down to 70%, so you can see what is behind the window.
 - **Status bar** (bottom): shortcut reminders; click **Hidden files on/off** to show or hide hidden files (same as Ctrl+H).
-- 1, 2 or 3 panes: use the layout buttons on the toolbar or Ctrl+1 / 2 / 3. Drag the splitter between panes to resize them. Each pane has its own tabs; a new tab opens at **This PC**. The active pane shows `ACTIVE` and an accent line on its current tab.
+- 1, 2 or 3 panes: use the layout buttons on the toolbar or Ctrl+1 / 2 / 3. Drag the splitter between panes to resize them. Each pane has its own tabs; a new tab opens at **This PC**. The active pane (the one with the keyboard focus) has a bright accent frame and shows `ACTIVE`. Scrollbars are thin and coloured to match the theme.
 - **Tabs**: click the `×` on a tab to close it (or Ctrl+W, middle-click). Right-click a tab for Close tab, Close other tabs, Close tabs to the right, Duplicate tab and New tab. Double-click the empty part of the tab strip to open a new tab.
 - **Address bar**:
   - Click a segment to go there; click `›` to pick a subfolder; `▾` opens the history.

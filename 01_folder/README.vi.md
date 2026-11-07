@@ -36,7 +36,7 @@ build.bat
   - **Background picture…** (cùng menu): chọn một hình làm nền cho cả cửa sổ, dùng được với mọi theme; chữ vẫn dễ đọc. Với Glass, hình bạn chọn được làm nhòe thay cho hình nền desktop. **Remove background picture** để tắt.
   - **Window opacity** (cùng menu): độ đục của cửa sổ từ 100% xuống 70%, để nhìn xuyên thấy phía sau.
 - **Status bar** (dưới cùng): nhắc phím tắt; bấm **Hidden files on/off** để hiện/ẩn file ẩn (giống Ctrl+H).
-- Có 1, 2 hoặc 3 pane: bấm nút layout trên toolbar hoặc Ctrl+1 / 2 / 3. Kéo thanh chia giữa các pane để đổi độ rộng. Mỗi pane có tab riêng, tab mới mở ở **This PC**. Pane đang active hiện chữ `ACTIVE` và vạch màu trên tab hiện tại.
+- Có 1, 2 hoặc 3 pane: bấm nút layout trên toolbar hoặc Ctrl+1 / 2 / 3. Kéo thanh chia giữa các pane để đổi độ rộng. Mỗi pane có tab riêng, tab mới mở ở **This PC**. Pane đang active (đang được focus) có khung viền sáng màu nhấn và chữ `ACTIVE`. Thanh cuộn mảnh, màu theo theme.
 - **Tab**: bấm `×` trên tab để đóng (hoặc Ctrl+W, middle-click). Chuột phải lên tab: Close tab, Close other tabs, Close tabs to the right, Duplicate tab, New tab. Double-click vùng trống của thanh tab để mở tab mới.
 - **Address bar**:
   - Click một đoạn để đi tới đó; click `›` để chọn folder con; `▾` mở lịch sử.
