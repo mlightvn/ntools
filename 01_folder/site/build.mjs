@@ -16,6 +16,8 @@ const PUBLIC = join(SITE, 'public');
 const ORIGIN = 'https://nexplorer.vietkeys.com';
 const AUTHOR = { name: 'Nguyen Ngoc Nam', url: 'https://www.linkedin.com/in/nguyenngocnam/' };
 const EXE = 'nexplorer.exe';
+const REPO = 'https://github.com/mlightvn/ntools';
+const LICENSE_URL = `${REPO}/blob/main/LICENSE`;
 
 // ---- release facts ----
 const meta = JSON.parse(readFileSync(join(SITE, 'release.json'), 'utf8'));
@@ -58,6 +60,7 @@ const keys = (combo) => combo.split(' · ').map((part) => part.split(' / ').map(
 const ICON = {
   logo: '<svg viewBox="0 0 64 64" aria-hidden="true"><path d="M32 3 57 17.5v29L32 61 7 46.5v-29Z" fill="#061016" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><path d="M18 21h10l3 4h15v18H18Z" fill="currentColor" fill-opacity=".28" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round"/><path d="M18 29h28" stroke="currentColor" stroke-width="2"/></svg>',
   download: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m0 0-5-5m5 5 5-5M4 19h16"/></svg>',
+  code: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m8 7-5 5 5 5M16 7l5 5-5 5M14 4l-4 16"/></svg>',
   check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg>',
 };
 // One icon per feature, in the order of T[lang].features.items
@@ -94,6 +97,8 @@ function page(l) {
     downloadUrl: `${ORIGIN}/download/${EXE}`,
     url: ORIGIN + pathOf(l),
     offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+    license: 'https://opensource.org/licenses/MIT',
+    sameAs: [REPO],
     author: { '@type': 'Person', ...AUTHOR },
     image: `${ORIGIN}/og.png`,
   };
@@ -158,7 +163,7 @@ ${LANGS.map((o) => `<link rel="alternate" hreflang="${T[o].htmlLang}" href="${OR
     <span class="eyebrow">${esc(t.hero.eyebrow)}</span>
     <h1>${t.hero.h1}</h1>
     <p class="lead">${t.hero.lead}</p>
-    <div class="ctas">${dl()}</div>
+    <div class="ctas">${dl()}<a class="btn ghost" href="${REPO}" rel="noopener">${ICON.code}<span class="two">${esc(t.hero.source)}<span class="btn-sub">${esc(t.hero.sourceSub)}</span></span></a></div>
     <p class="meta">${esc(fill(t.hero.meta))}</p>
     <ul class="trust">${t.hero.trust.map((s) => `<li>${ICON.check}${esc(fill(s))}</li>`).join('')}</ul>
     <div class="panel showcase" data-showcase>
@@ -243,7 +248,7 @@ ${[t.install.smartscreen, t.install.remove, t.install.reset].map(([h, p]) => `  
     <p class="kicker">${esc(t.faq.kicker)}</p>
     <h2>${esc(t.faq.h2)}</h2>
     <div class="faq">
-${t.faq.items.map(([q, a]) => `      <details><summary>${esc(q)}</summary><p>${a}</p></details>`).join('\n')}
+${t.faq.items.map(([q, a]) => `      <details><summary>${esc(q)}</summary><p>${a.replaceAll('{repo}', REPO)}</p></details>`).join('\n')}
     </div>
   </div>
 </section>
@@ -261,7 +266,7 @@ ${t.faq.items.map(([q, a]) => `      <details><summary>${esc(q)}</summary><p>${a
 
 <footer>
   <div class="wrap">
-    <p>© ${release.date.slice(0, 4)} nExplorer · ${esc(t.footer.by)} · <a href="${AUTHOR.url}" rel="author">LinkedIn</a> · ${esc(t.footer.also)}: <a href="https://vietkeys.com${pathOf(l)}">VietKeys</a></p>
+    <p>© ${release.date.slice(0, 4)} nExplorer · ${esc(t.footer.by)} · <a href="${AUTHOR.url}" rel="author">LinkedIn</a> · <a href="${LICENSE_URL}" rel="license">${esc(t.footer.license)}</a> · <a href="${REPO}">${esc(t.footer.source)}</a> · ${esc(t.footer.also)}: <a href="https://vietkeys.com${pathOf(l)}">VietKeys</a></p>
     ${langSwitch(l)}
   </div>
 </footer>

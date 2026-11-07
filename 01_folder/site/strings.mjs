@@ -25,7 +25,9 @@ export const T = {
     skip: 'Skip to content',
     nav: { features: 'Features', search: 'Search', keys: 'Shortcuts', install: 'Get it', faq: 'FAQ', download: 'Download' },
     hero: {
-      eyebrow: 'Free · Windows 10 & 11 · portable',
+      eyebrow: 'Free & open source · Windows 10 & 11 · portable',
+      source: 'Source code',
+      sourceSub: 'GitHub · MIT License',
       h1: 'The file manager Windows Explorer <em>should have been</em>',
       lead: 'One small exe. Up to three panes with tabs, search that finds files while you type, delete that does not make you wait, and themes you will actually want to look at.',
       download: 'Download nExplorer',
@@ -114,7 +116,7 @@ export const T = {
       kicker: 'FAQ',
       h2: 'Questions',
       items: [
-        ['Is nExplorer free?', 'Yes. Download it and use it on as many PCs as you like.'],
+        ['Is nExplorer free?', 'Yes, free and open source under the MIT License. Use it on as many PCs as you like; the source code is on <a href="{repo}">GitHub</a>.'],
         ['Does it replace Windows Explorer?', 'It runs next to it: Explorer, the desktop and the taskbar stay as they are. Use nExplorer for your file work and keep Explorer for anything else.'],
         ['Why is it so fast?', 'It reads folders on a background thread and skips what slows Explorer down: no shell extensions, no thumbnails, no search index.'],
         ['Where are my settings?', 'In <code>nexplorer.ini</code> next to the exe: favourites, Quick access, profiles, theme and window layout. Copy both files to take your setup to another PC.'],
@@ -124,7 +126,7 @@ export const T = {
       ],
     },
     final: { h2: 'Give your files a better home', p: 'Free, portable, and ready in seconds.' },
-    footer: { by: 'Made by Nguyen Ngoc Nam', also: 'Also by the author', languages: 'Language' },
+    footer: { by: 'Made by Nguyen Ngoc Nam', license: 'MIT License', source: 'Source code', also: 'Also by the author', languages: 'Language' },
   },
 
   vi: {
@@ -137,7 +139,9 @@ export const T = {
     skip: 'Bỏ qua, đến nội dung',
     nav: { features: 'Tính năng', search: 'Tìm kiếm', keys: 'Phím tắt', install: 'Tải về', faq: 'Hỏi đáp', download: 'Tải về' },
     hero: {
-      eyebrow: 'Miễn phí · Windows 10 & 11 · không cần cài',
+      eyebrow: 'Miễn phí, mã nguồn mở · Windows 10 & 11 · không cần cài',
+      source: 'Mã nguồn',
+      sourceSub: 'GitHub · giấy phép MIT',
       h1: 'Trình quản lý file mà Windows Explorer <em>lẽ ra phải như vậy</em>',
       lead: 'Chỉ một file exe nhỏ. Tối đa ba khung, mỗi khung có tab, tìm file ngay khi đang gõ, xóa không phải chờ, và những giao diện bạn sẽ thích ngắm.',
       download: 'Tải nExplorer',
@@ -226,7 +230,7 @@ export const T = {
       kicker: 'Hỏi đáp',
       h2: 'Câu hỏi thường gặp',
       items: [
-        ['nExplorer có miễn phí không?', 'Có. Tải về và dùng trên bao nhiêu máy tùy thích.'],
+        ['nExplorer có miễn phí không?', 'Có, miễn phí và mã nguồn mở theo giấy phép MIT. Dùng trên bao nhiêu máy tùy thích; mã nguồn có trên <a href="{repo}">GitHub</a>.'],
         ['Nó có thay thế Windows Explorer không?', 'Nó chạy song song: Explorer, desktop và taskbar vẫn như cũ. Dùng nExplorer cho việc quản lý file, còn lại vẫn dùng Explorer.'],
         ['Vì sao nhanh vậy?', 'Thư mục được đọc ở luồng nền, và bỏ qua những thứ làm Explorer chậm: không shell extension, không ảnh thu nhỏ, không chỉ mục tìm kiếm.'],
         ['Cài đặt của tôi nằm ở đâu?', 'Trong <code>nexplorer.ini</code> cạnh file exe: Yêu thích, Quick access, profile, giao diện và bố cục cửa sổ. Chép cả hai file là mang được thiết lập sang máy khác.'],
@@ -236,7 +240,7 @@ export const T = {
       ],
     },
     final: { h2: 'Cho file của bạn một ngôi nhà tốt hơn', p: 'Miễn phí, không cần cài, mở lên là dùng.' },
-    footer: { by: 'Tác giả: Nguyen Ngoc Nam', also: 'Cùng tác giả', languages: 'Ngôn ngữ' },
+    footer: { by: 'Tác giả: Nguyen Ngoc Nam', license: 'Giấy phép MIT', source: 'Mã nguồn', also: 'Cùng tác giả', languages: 'Ngôn ngữ' },
   },
 
   ja: {
@@ -249,7 +253,9 @@ export const T = {
     skip: '本文へスキップ',
     nav: { features: '機能', search: '検索', keys: 'ショートカット', install: 'ダウンロード', faq: 'よくある質問', download: 'ダウンロード' },
     hero: {
-      eyebrow: '無料 · Windows 10 / 11 · ポータブル',
+      eyebrow: '無料・オープンソース · Windows 10 / 11 · ポータブル',
+      source: 'ソースコード',
+      sourceSub: 'GitHub · MIT ライセンス',
       h1: 'Windows エクスプローラーが<em>こうあってほしかった</em>ファイル マネージャー',
       lead: '小さな exe 1 つだけ。タブ付きのペインを最大 3 つ、入力と同時にファイルが見つかる検索、待たされない削除、そして眺めていたくなるテーマ。',
       download: 'nExplorer をダウンロード',
@@ -338,7 +344,7 @@ export const T = {
       kicker: 'よくある質問',
       h2: 'よくある質問',
       items: [
-        ['nExplorer は無料ですか？', 'はい。ダウンロードして、何台の PC でも使えます。'],
+        ['nExplorer は無料ですか？', 'はい。MIT ライセンスの無料オープンソース ソフトウェアで、何台の PC でも使えます。ソースコードは <a href="{repo}">GitHub</a> にあります。'],
         ['Windows エクスプローラーを置き換えるのですか？', '並べて使います。エクスプローラー、デスクトップ、タスク バーはそのままです。ファイル作業は nExplorer で、それ以外はエクスプローラーで。'],
         ['なぜこんなに速いのですか？', 'フォルダーをバックグラウンド スレッドで読み込み、エクスプローラーを遅くする要素を省いているからです: シェル拡張、サムネイル、検索インデックスを使いません。'],
         ['設定はどこに保存されますか？', 'exe と同じ場所の <code>nexplorer.ini</code> です (お気に入り、クイック アクセス、プロファイル、テーマ、ウィンドウ配置)。2 つのファイルをコピーすれば、別の PC にも同じ環境を持っていけます。'],
@@ -348,7 +354,7 @@ export const T = {
       ],
     },
     final: { h2: 'ファイルに、もっと快適な居場所を', p: '無料・ポータブル、数秒で使い始められます。' },
-    footer: { by: '作者: Nguyen Ngoc Nam', also: '同じ作者のアプリ', languages: '言語' },
+    footer: { by: '作者: Nguyen Ngoc Nam', license: 'MIT ライセンス', source: 'ソースコード', also: '同じ作者のアプリ', languages: '言語' },
   },
 
   zh: {
@@ -361,7 +367,9 @@ export const T = {
     skip: '跳到正文',
     nav: { features: '功能', search: '搜索', keys: '快捷键', install: '下载', faq: '常见问题', download: '下载' },
     hero: {
-      eyebrow: '免费 · Windows 10 和 11 · 免安装',
+      eyebrow: '免费开源 · Windows 10 和 11 · 免安装',
+      source: '源代码',
+      sourceSub: 'GitHub · MIT 许可证',
       h1: 'Windows 资源管理器<em>本该有的样子</em>',
       lead: '只有一个小巧的 exe。最多三个带标签页的窗格，边输入边找到文件的搜索，不用等待的删除，还有让人想多看几眼的主题。',
       download: '下载 nExplorer',
@@ -450,7 +458,7 @@ export const T = {
       kicker: '常见问题',
       h2: '常见问题',
       items: [
-        ['nExplorer 免费吗？', '是的。下载后可在任意多台电脑上使用。'],
+        ['nExplorer 免费吗？', '是的，它是基于 MIT 许可证的免费开源软件，可在任意多台电脑上使用；源代码在 <a href="{repo}">GitHub</a> 上。'],
         ['它会取代 Windows 资源管理器吗？', '两者并存：资源管理器、桌面和任务栏保持不变。文件管理用 nExplorer，其他照常用资源管理器。'],
         ['为什么这么快？', '它在后台线程读取文件夹，并省去了拖慢资源管理器的东西：不加载外壳扩展、不生成缩略图、不使用搜索索引。'],
         ['我的设置保存在哪里？', '在 exe 旁边的 <code>nexplorer.ini</code> 中：收藏夹、快速访问、配置文件、主题和窗口布局。复制这两个文件，就能把设置带到另一台电脑。'],
@@ -460,6 +468,6 @@ export const T = {
       ],
     },
     final: { h2: '给你的文件一个更好的家', p: '免费、免安装，几秒钟即可开始使用。' },
-    footer: { by: '作者：Nguyen Ngoc Nam', also: '同一作者的应用', languages: '语言' },
+    footer: { by: '作者：Nguyen Ngoc Nam', license: 'MIT 许可证', source: '源代码', also: '同一作者的应用', languages: '语言' },
   },
 };
