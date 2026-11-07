@@ -1,0 +1,7 @@
+# Uploaded by the Vercel CLI: only public/ is served; the sources stay home.
+# (Having this file also stops the CLI from applying .gitignore, which would drop nexplorer.exe.)
+build.mjs
+strings.mjs
+og.html
+release.json
+static/
